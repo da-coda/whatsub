@@ -1,15 +1,15 @@
 name: build and deploy
-  on: [push]
-  jobs:
-    build-base-image:
-      runs-on: ubuntu-latest
-      steps:
-        - name: Checkout
-          uses: actions/checkout@v2
-        - name: Set up Go
-          uses: actions/setup-go@v2
-          with:
-            stable: false
-            go-version: 1.16.0-rc1
-        - name: Build binary
-            run: go build -v ./...
+on: [push]
+jobs:
+  build-base-image:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+      - name: Set up Go
+        uses: actions/setup-go@v2
+        with:
+          stable: false
+          go-version: 1.16.0-rc1
+      - name: Build binary
+          run: go build -v ./...
