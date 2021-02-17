@@ -13,6 +13,8 @@ import (
 	"time"
 )
 
+const InactiveNotStartedTimeout = 60 * time.Minute
+
 type Worker struct {
 	WorkerId         uuid.UUID
 	Connections      map[string]*websocket.Conn
@@ -22,6 +24,8 @@ type Worker struct {
 	Subreddits       []string
 	Host             string
 	Rounds           int
+	Active           bool
+	Created          time.Time
 }
 
 type Round struct {
@@ -34,7 +38,7 @@ type Round struct {
 }
 
 func New() *Worker {
-	w := &Worker{WorkerId: uuid.New(), Rounds: 5}
+	w := &Worker{WorkerId: uuid.New(), Rounds: 10, Created: time.Now(), Started: false, Active: false}
 	w.Connections = make(map[string]*websocket.Conn)
 	w.connectionLookup = make(map[*websocket.Conn]string)
 	return w
@@ -61,17 +65,19 @@ func (worker *Worker) AddPlayer(conn *websocket.Conn) bool {
 	return true
 }
 
-func (worker Worker) RunGame() {
+func (worker *Worker) RunGame() {
 	worker.Started = true
+	worker.Active = true
 	worker.preparePosts()
 	for i := 0; i < worker.Rounds; i++ {
 		worker.runRound(i)
 	}
+	worker.Active = false
 }
 
 func (worker *Worker) preparePosts() {
 	subreddits := redditHelper.GetTopSubreddits()
-	links, err := redditHelper.GetTopPostsForSubreddits(subreddits, 2)
+	links, err := redditHelper.GetTopPostsForSubreddits(subreddits, 5)
 	if err != nil {
 		logrus.WithError(err).Error("Unable to prepare posts")
 	}
@@ -112,6 +118,23 @@ func (worker *Worker) runRound(round int) {
 		go handleClientAnswer(client, post.Data.Subreddit, &wg)
 	}
 	wg.Wait()
+}
+
+// StillNeeded checks for different conditions to decide if this worker is still needed
+func (worker *Worker) StillNeeded() bool {
+	// All rounds are played, game is done
+	if !worker.Active && worker.Started {
+		logrus.Debug("Game is done")
+		return false
+	}
+
+	// Worker got created but game didn't start within the duration InactiveNotStartedTimeout
+	if worker.Created.Add(InactiveNotStartedTimeout).Before(time.Now()) && !worker.Started {
+		logrus.Debug("Game never started")
+		return false
+	}
+
+	return true
 }
 
 func handleClientAnswer(client *websocket.Conn, correctAnswer string, wg *sync.WaitGroup) {
