@@ -5,7 +5,7 @@ import (
 	"gopkg.in/resty.v1"
 )
 
-const baseUrl = "https://reddit.com/"
+const baseUrl = "https://reddit.com"
 
 var client *resty.Client
 

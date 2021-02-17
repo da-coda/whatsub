@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Title</title>
+    <script src="index.js" type="application/javascript"></script>
+</head>
+<body>
+<div>
+    <button onclick="createGame()">Create Game</button>
+    <span id="gameUuid"></span>
+</div>
+<div>
+    <input id="joinUuid"/>
+    <label for="joinUuid">UUID</label>
+    <input id="joinName"/>
+    <label for="joinName">Name</label>
+    <button onclick="joinGame()">Join Game</button>
+</div>
+<div>
+    <input id="startUuid"/>
+    <label for="startUuid">UUID</label>
+    <button onclick="startGame()">Start Game</button>
+</div>
+
+<input id="answer"/>
+<label for="answer">Answer</label>
+<button onclick="answerPost()">Submit</button>
+
+<div>
+    <p id="websocketMessages"></p>
+</div>
+
+<div>
+    <span id="postTitle"></span>
+    <div id="postContent">
+
+    </div>
+</div>
+</body>
+</html>

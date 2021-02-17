@@ -12,7 +12,7 @@ type Link struct {
 type Post struct {
 	Kind string
 	Data struct {
-		Subreddit   string     `json:"subreddit"`
+		Subreddit   string     `json:"subreddit_name_prefixed"`
 		Content     string     `json:"selftext"`
 		Title       string     `json:"title"`
 		UpvoteRatio float64    `json:"upvote_ratio"`
@@ -25,6 +25,7 @@ type Post struct {
 		ID          string     `json:"id"`
 		Author      string     `json:"author"`
 		Permalink   string     `json:"permalink"`
+		Image       string     `json:"url"`
 	}
 }
 
