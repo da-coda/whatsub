@@ -14,22 +14,18 @@ function createGame() {
 function joinGame() {
     let uuid = document.getElementById("joinUuid").value
     let name = document.getElementById("joinName").value
-    conn = new WebSocket("ws://localhost:8000/game/" + uuid  + "/join")
+    conn = new WebSocket("ws://localhost:8000/game/" + uuid  + "/join/" + name)
     let infoBox = document.getElementById("websocketMessages")
     let postTitle = document.getElementById("postTitle")
     let postContent = document.getElementById("postContent")
-    conn.onopen = function (event) {
-        conn.send(name);
-    };
 
     conn.onmessage = function (event) {
         var msg = JSON.parse(event.data);
-        console.log(msg)
-        console.log(event.data)
+        console.table(msg.Payload)
         switch (msg.Type) {
             case "round":
-                postTitle.innerText = msg.PostTitle
-                postContent.innerHTML = msg.PostText
+                postTitle.innerText = msg.Post.Title
+                postContent.innerHTML = msg.Post.Content
                 if (msg.Image !== "") {
                     let oldImg = document.getElementById("postImage");
                     if(oldImg !== null) {

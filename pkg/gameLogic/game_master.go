@@ -1,13 +1,11 @@
-package gameMaster
+package gameLogic
 
 import (
-	"github.com/da-coda/whatsub/pkg/worker"
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
 	"github.com/gorilla/websocket"
 	"github.com/sirupsen/logrus"
 	"net/http"
-	"sync"
 	"time"
 )
 
@@ -16,34 +14,34 @@ var upgrader = websocket.Upgrader{CheckOrigin: func(r *http.Request) bool {
 }}
 
 type GameMaster struct {
-	Worker map[uuid.UUID]*worker.Worker
-	mu     sync.Mutex
+	Worker map[uuid.UUID]*Worker
 }
 
 func New() *GameMaster {
 	gm := &GameMaster{}
-	gm.Worker = make(map[uuid.UUID]*worker.Worker)
+	gm.Worker = make(map[uuid.UUID]*Worker)
 	go gm.cleanUp()
 	return gm
 }
 
 func (gm *GameMaster) CreateGame() uuid.UUID {
-	gameWorker := worker.New()
+	gameWorker := NewWorker()
 	gm.Worker[gameWorker.WorkerId] = gameWorker
+	go gameWorker.OpenLobby()
 	return gameWorker.WorkerId
 }
 
 func (gm *GameMaster) JoinGame(w http.ResponseWriter, r *http.Request) {
+	logrus.Debug("Player joining a game")
 	vars := mux.Vars(r)
 	workerId := vars["uuid"]
+	playerName := vars["name"]
 	workerUuid, err := uuid.Parse(workerId)
 	if err != nil {
 		logrus.WithError(err).Error("Unable to parse worker id")
 		w.WriteHeader(400)
 		return
 	}
-	gm.mu.Lock()
-	defer gm.mu.Unlock()
 	gameWorker, exists := gm.Worker[workerUuid]
 	if !exists {
 		logrus.WithField("UUID", workerUuid).Debug("Tried to join game on worker that does not exist")
@@ -55,10 +53,7 @@ func (gm *GameMaster) JoinGame(w http.ResponseWriter, r *http.Request) {
 		logrus.WithError(err).Error("Unable to upgrade to websocket connection")
 		return
 	}
-
-	if !gameWorker.AddPlayer(c) {
-		w.WriteHeader(400)
-	}
+	NewClient(c, playerName, gameWorker)
 }
 
 func (gm *GameMaster) StartGame(w http.ResponseWriter, r *http.Request) {
@@ -70,8 +65,6 @@ func (gm *GameMaster) StartGame(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(400)
 		return
 	}
-	gm.mu.Lock()
-	defer gm.mu.Unlock()
 	gameWorker, exists := gm.Worker[workerUuid]
 	if !exists {
 		logrus.WithField("UUID", workerUuid).Debug("Tried to join game on worker that does not exist")
@@ -83,14 +76,12 @@ func (gm *GameMaster) StartGame(w http.ResponseWriter, r *http.Request) {
 
 func (gm *GameMaster) cleanUp() {
 	for {
-		gm.mu.Lock()
 		for workerId, gameWorker := range gm.Worker {
 			if !gameWorker.StillNeeded() {
 				logrus.WithField("Worker", workerId.String()).Debug("Removing worker in clean up")
 				delete(gm.Worker, workerId)
 			}
 		}
-		gm.mu.Unlock()
 		time.Sleep(30 * time.Second)
 	}
 }
