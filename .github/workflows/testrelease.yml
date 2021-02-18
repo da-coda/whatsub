@@ -17,6 +17,6 @@ jobs:
         uses: docker/build-push-action@v2
         with:
           push: true
-          tags: danielroehrig/whatsapp:0.0.1
+          tags: da-coda/whatsub:0.0.1
       - name: Image digest
         run: echo ${{ steps.docker_build.outputs.digest }}
