@@ -14,7 +14,7 @@ function createGame() {
 function joinGame() {
     let uuid = document.getElementById("joinUuid").value
     let name = document.getElementById("joinName").value
-    conn = new WebSocket("ws://whatsub.danielroehrig.de/game/" + uuid  + "/join")
+    conn = new WebSocket("wss://whatsub.danielroehrig.de/game/" + uuid  + "/join")
     let infoBox = document.getElementById("websocketMessages")
     let postTitle = document.getElementById("postTitle")
     let postContent = document.getElementById("postContent")
