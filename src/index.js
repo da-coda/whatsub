@@ -27,7 +27,7 @@ function joinGame() {
     if (useUuidField) {
         uuid = document.getElementById("joinUuid").value
     }
-    conn = new WebSocket("ws://localhost:8000/game/" + uuid + "/join?name=" + name)
+    conn = new WebSocket("wss://www.whatsub.io/game/" + uuid + "/join?name=" + name)
     document.getElementById("join").style.display = "none"
     document.getElementById("lobby").style.display = "block"
 
