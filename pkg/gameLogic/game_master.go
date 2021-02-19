@@ -26,9 +26,9 @@ func New() *GameMaster {
 
 func (gm *GameMaster) CreateGame() uuid.UUID {
 	gameWorker := NewWorker()
-	gm.Worker[gameWorker.WorkerId] = gameWorker
+	gm.Worker[gameWorker.Id] = gameWorker
 	go gameWorker.OpenLobby()
-	return gameWorker.WorkerId
+	return gameWorker.Id
 }
 
 func (gm *GameMaster) JoinGame(w http.ResponseWriter, r *http.Request) {

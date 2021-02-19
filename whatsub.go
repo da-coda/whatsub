@@ -13,7 +13,7 @@ import (
 )
 
 func main() {
-	logrus.SetLevel(logrus.DebugLevel)
+	logrus.SetLevel(logrus.InfoLevel)
 	gm := gameLogic.New()
 	router := mux.NewRouter()
 	router.HandleFunc("/game/create", CreateGameHandler(gm))
