@@ -1,5 +1,10 @@
 name: build and deploy
-on: [push]
+on:
+  push:
+    tags:
+      - 'sc.*'
+    branches:
+      - 'develop'
 jobs:
   build-base-image:
     runs-on: ubuntu-latest
