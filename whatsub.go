@@ -22,7 +22,7 @@ func main() {
 	router.PathPrefix("/").HandlerFunc(ServeWebpage).Methods("GET")
 	srv := &http.Server{
 		Handler:      router,
-		Addr:         "127.0.0.1:8000",
+		Addr:         "0.0.0.0:8000",
 		WriteTimeout: 15 * time.Second,
 		ReadTimeout:  15 * time.Second,
 	}

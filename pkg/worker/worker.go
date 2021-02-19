@@ -34,7 +34,7 @@ type Round struct {
 }
 
 func New() *Worker {
-	w := &Worker{WorkerId: uuid.New(), Rounds: 5}
+	w := &Worker{WorkerId: uuid.New(), Rounds: 10}
 	w.Connections = make(map[string]*websocket.Conn)
 	w.connectionLookup = make(map[*websocket.Conn]string)
 	return w
@@ -71,7 +71,7 @@ func (worker Worker) RunGame() {
 
 func (worker *Worker) preparePosts() {
 	subreddits := redditHelper.GetTopSubreddits()
-	links, err := redditHelper.GetTopPostsForSubreddits(subreddits, 2)
+	links, err := redditHelper.GetTopPostsForSubreddits(subreddits, 5)
 	if err != nil {
 		logrus.WithError(err).Error("Unable to prepare posts")
 	}
