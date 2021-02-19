@@ -22,3 +22,8 @@ jobs:
             ghcr.io/da-coda/whatsub:0.0.1
       - name: Image digest
         run: echo ${{ steps.docker_build.outputs.digest }}
+      - name: Call deployment webhook
+        uses: joelwmale/webhook-action@master
+        with:
+          url: ${{ secrets.WEBHOOK_URL }}
+          headers: "{'X-Hub-Signature': ${{ secrets.WEBHOOK_SECRET }}}"
