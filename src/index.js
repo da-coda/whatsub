@@ -35,6 +35,8 @@ function joinGame() {
         var msg = JSON.parse(event.data);
         switch (msg.Type) {
             case "round":
+                document.getElementById("lobby").style.display = "none"
+                document.getElementById("round").style.display = "block"
                 document.getElementById("buttons").innerHTML = ""
                 document.getElementById("postImage").src = ""
 
@@ -73,8 +75,6 @@ function startGame() {
     var req = new XMLHttpRequest()
     req.open("GET", "/game/" + uuid + "/start", true); // true for asynchronous
     req.send(null);
-    document.getElementById("lobby").style.display = "none"
-    document.getElementById("round").style.display = "block"
 }
 
 function answerPost(answer) {
