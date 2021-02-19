@@ -2,11 +2,12 @@ package main
 
 import (
 	"encoding/json"
-	"github.com/da-coda/whatsub/pkg/gameMaster"
+	"github.com/da-coda/whatsub/pkg/gameLogic"
 	"github.com/gorilla/mux"
 	"github.com/sirupsen/logrus"
 	"log"
 	"net/http"
+	_ "net/http/pprof"
 	"os"
 	"path/filepath"
 	"time"
@@ -14,10 +15,10 @@ import (
 
 func main() {
 	logrus.SetLevel(logrus.DebugLevel)
-	gm := gameMaster.New()
+	gm := gameLogic.NewGameMaster()
 	router := mux.NewRouter()
 	router.HandleFunc("/game/create", CreateGameHandler(gm))
-	router.HandleFunc("/game/{uuid}/join", gm.JoinGame)
+	router.HandleFunc("/game/{uuid}/join", gm.JoinGame).Queries("name", "{name}")
 	router.HandleFunc("/game/{uuid}/start", gm.StartGame)
 	router.PathPrefix("/").HandlerFunc(ServeWebpage).Methods("GET")
 	srv := &http.Server{
@@ -30,7 +31,7 @@ func main() {
 	log.Fatal(srv.ListenAndServe())
 }
 
-func CreateGameHandler(gm *gameMaster.GameMaster) func(writer http.ResponseWriter, request *http.Request) {
+func CreateGameHandler(gm *gameLogic.GameMaster) func(writer http.ResponseWriter, request *http.Request) {
 	return func(writer http.ResponseWriter, request *http.Request) {
 		uuid := gm.CreateGame()
 		response := map[string]string{"uuid": uuid.String()}

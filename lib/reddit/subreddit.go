@@ -9,7 +9,7 @@ import (
 )
 
 func SubredditTopPosts(subreddit string, limit int, count int) (types.Link, error) {
-	uri := fmt.Sprintf("%s%s/top.json", baseUrl, subreddit)
+	uri := fmt.Sprintf("%s/%s/top.json", baseUrl, subreddit)
 	response, err := client.R().SetQueryParams(map[string]string{
 		"limit": strconv.Itoa(limit),
 		"count": strconv.Itoa(count),
