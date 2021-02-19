@@ -33,6 +33,7 @@ type Client struct {
 	Worker  *Worker
 	Send    chan []byte
 	Message chan []byte
+	Blocked bool
 }
 
 func (c *Client) Close() error {

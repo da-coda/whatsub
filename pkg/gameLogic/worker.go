@@ -202,11 +202,16 @@ func (worker *Worker) runRound(round int) {
 	//send post as json to all clients
 	for _, playerClient := range worker.Clients {
 		playerClient.Send <- roundJson
+		playerClient.Blocked = false
 	}
 
 	//listen for incoming answers and spawn a handler for handling the answer
 	for i := 0; i < len(worker.Clients); i++ {
 		clientAnswered := <-worker.Incoming
+		if clientAnswered.Blocked {
+			i--
+			continue
+		}
 		logrus.WithField("Worker", worker.Id).WithField("Client", clientAnswered.Name).Debug("Client answered")
 		wg.Add(1)
 		go worker.handleClientAnswer(clientAnswered, post.Data.Subreddit, &wg)
@@ -275,4 +280,5 @@ func (worker *Worker) handleClientAnswer(playerClient *Client, correctAnswer str
 		return
 	}
 	playerClient.Send <- msgJson
+	playerClient.Blocked = true
 }
