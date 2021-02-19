@@ -7,17 +7,18 @@ import (
 	"github.com/sirupsen/logrus"
 	"log"
 	"net/http"
+	_ "net/http/pprof"
 	"os"
 	"path/filepath"
 	"time"
 )
 
 func main() {
-	logrus.SetLevel(logrus.InfoLevel)
-	gm := gameLogic.New()
+	logrus.SetLevel(logrus.DebugLevel)
+	gm := gameLogic.NewGameMaster()
 	router := mux.NewRouter()
 	router.HandleFunc("/game/create", CreateGameHandler(gm))
-	router.HandleFunc("/game/{uuid}/join/{name}", gm.JoinGame)
+	router.HandleFunc("/game/{uuid}/join", gm.JoinGame).Queries("name", "{name}")
 	router.HandleFunc("/game/{uuid}/start", gm.StartGame)
 	router.PathPrefix("/").HandlerFunc(ServeWebpage).Methods("GET")
 	srv := &http.Server{

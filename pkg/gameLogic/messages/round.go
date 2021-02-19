@@ -2,7 +2,7 @@ package messages
 
 import "github.com/da-coda/whatsub/lib/reddit/types"
 
-const RoundType = "round"
+const RoundType Type = "round"
 
 type Round struct {
 	Envelop
@@ -15,6 +15,7 @@ type Round struct {
 			Type    types.PostType
 			Url     string
 		}
+		Subreddits []string
 	}
 }
 
@@ -30,6 +31,7 @@ func NewRoundMessage() Round {
 				Type    types.PostType
 				Url     string
 			}
+			Subreddits []string
 		}{},
 	}
 }

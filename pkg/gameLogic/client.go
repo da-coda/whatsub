@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"github.com/gorilla/websocket"
 	"github.com/sirupsen/logrus"
-	"sync"
 	"time"
 )
 
@@ -28,8 +27,7 @@ var (
 )
 
 type Client struct {
-	conn *websocket.Conn
-	*sync.RWMutex
+	conn    *websocket.Conn
 	Name    string
 	Score   int
 	Worker  *Worker
@@ -37,8 +35,17 @@ type Client struct {
 	Message chan []byte
 }
 
+func (c *Client) Close() error {
+	logrus.Debug("Terminating client because Close() got called")
+	close(c.Send)
+	close(c.Message)
+	_ = c.conn.WriteMessage(websocket.CloseMessage, []byte{})
+	_ = c.conn.Close()
+	return nil
+}
+
 func NewClient(conn *websocket.Conn, name string, gameWorker *Worker) {
-	client := &Client{conn: conn, Name: name, Worker: gameWorker, Send: make(chan []byte, 256), Message: make(chan []byte, 1)}
+	client := &Client{conn: conn, Name: name, Worker: gameWorker, Send: make(chan []byte, 256), Message: make(chan []byte, 256)}
 	gameWorker.Register <- client
 	go client.readPump()
 	go client.writePump()
@@ -50,13 +57,8 @@ func (c *Client) readPump() {
 			WithField("Worker", c.Worker.Id).
 			WithField("Client", c.Name).
 			Info("Closing websocket for read")
-		c.Worker.Unregister <- c
-		err := c.conn.Close()
-		if err != nil {
-			logrus.WithError(err).
-				WithField("Worker", c.Worker.Id).
-				WithField("Client", c.Name).
-				Error("Unable to close connection. Closing client ungracefully")
+		if c.Worker.State != Closed {
+			c.Worker.Unregister <- c
 		}
 	}()
 	c.conn.SetReadLimit(maxMessageSize)
@@ -84,8 +86,10 @@ func (c *Client) readPump() {
 			break
 		}
 		message = bytes.TrimSpace(bytes.Replace(message, newline, space, -1))
-		c.Message <- message
-		c.Worker.Incoming <- c
+		if c.Worker.State != Closed {
+			c.Message <- message
+			c.Worker.Incoming <- c
+		}
 	}
 }
 
@@ -98,13 +102,7 @@ func (c *Client) writePump() {
 			Info("Closing websocket for write")
 
 		ticker.Stop()
-		err := c.conn.Close()
-		if err != nil {
-			logrus.WithError(err).
-				WithField("Worker", c.Worker.Id).
-				WithField("Client", c.Name).
-				Error("Unable to close connection. Closing client ungracefully")
-		}
+		_ = c.conn.Close()
 	}()
 	for {
 		select {
@@ -118,13 +116,6 @@ func (c *Client) writePump() {
 				return
 			}
 			if !ok {
-				err := c.conn.WriteMessage(websocket.CloseMessage, []byte{})
-				if err != nil {
-					logrus.WithError(err).
-						WithField("Worker", c.Worker.Id).
-						WithField("Client", c.Name).
-						Error("Unable to send close message")
-				}
 				return
 			}
 

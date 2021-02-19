@@ -1,11 +1,12 @@
 package messages
 
-const AnswerCorrectnessType = "answer_correct"
+const AnswerCorrectnessType Type = "answer_correct"
 
 type AnswerCorrectness struct {
 	Envelop
 	Payload struct {
-		Correct bool
+		Correct       bool
+		CorrectAnswer string
 	}
 }
 
@@ -13,7 +14,8 @@ func NewAnswerCorrectnessMessage() AnswerCorrectness {
 	return AnswerCorrectness{
 		Envelop: Envelop{Type: AnswerCorrectnessType},
 		Payload: struct {
-			Correct bool
+			Correct       bool
+			CorrectAnswer string
 		}{},
 	}
 }

@@ -1,19 +1,18 @@
 package messages
 
-const ScoreType = "score"
+const ScoreType Type = "score"
 
 type Score struct {
 	Envelop
 	Payload struct {
-		Score int
+		Scores map[string]int
 	}
 }
 
 func NewScoreMessage() Score {
-	return Score{
-		Envelop: Envelop{Type: ScoreType},
-		Payload: struct {
-			Score int
-		}{},
-	}
+	score := Score{}
+	score.Envelop = Envelop{Type: ScoreType}
+	score.Payload.Scores = make(map[string]int)
+	return score
+
 }
