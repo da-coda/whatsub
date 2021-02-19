@@ -117,6 +117,9 @@ func (worker *Worker) DisconnectHandler() {
 
 //RunGame is the main game loop which prepares the posts and runs each round
 func (worker *Worker) RunGame() {
+	if worker.State == Started {
+		return
+	}
 	worker.State = Started
 	logrus.WithField("Worker", worker.Id).Debug("Starting Game")
 	worker.preparePosts()
@@ -212,13 +215,8 @@ func (worker *Worker) runRound(round int) {
 			i--
 			continue
 		}
-		logrus.WithField("Worker", worker.Id).WithField("Client", clientAnswered.Name).Debug("Client answered")
-		wg.Add(1)
-		go worker.handleClientAnswer(clientAnswered, post.Data.Subreddit, &wg)
+		worker.handleClientAnswer(clientAnswered, post.Data.Subreddit, &wg)
 	}
-
-	//wait for all client answers to be handled and then end round
-	wg.Wait()
 }
 
 // StillNeeded checks for different conditions to decide if this worker is still needed

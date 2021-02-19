@@ -46,7 +46,7 @@ func (c *Client) Close() error {
 }
 
 func NewClient(conn *websocket.Conn, name string, gameWorker *Worker) {
-	client := &Client{conn: conn, Name: name, Worker: gameWorker, Send: make(chan []byte, 256), Message: make(chan []byte, 256)}
+	client := &Client{conn: conn, Name: name, Worker: gameWorker, Send: make(chan []byte, 256), Message: make(chan []byte)}
 	gameWorker.Register <- client
 	go client.readPump()
 	go client.writePump()
@@ -87,7 +87,7 @@ func (c *Client) readPump() {
 			break
 		}
 		message = bytes.TrimSpace(bytes.Replace(message, newline, space, -1))
-		if c.Worker.State != Closed {
+		if c.Worker.State != Closed && !c.Blocked {
 			c.Message <- message
 			c.Worker.Incoming <- c
 		}
