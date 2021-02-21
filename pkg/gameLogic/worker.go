@@ -40,7 +40,6 @@ type Worker struct {
 	Register    chan *Client
 	Unregister  chan *Client
 	State       State
-	Incoming    chan *Client
 }
 
 //NewWorker creates a new Worker and setups channels
@@ -52,7 +51,6 @@ func NewWorker() *Worker {
 		State:      Created,
 		Register:   make(chan *Client, 256),
 		Unregister: make(chan *Client, 256),
-		Incoming:   make(chan *Client, 256),
 		Clients:    make(map[string]*Client),
 	}
 	return w
@@ -66,7 +64,6 @@ func (worker *Worker) Close() error {
 		worker.Unregister <- client
 	}
 	close(worker.Register)
-	close(worker.Incoming)
 	return nil
 }
 
@@ -205,18 +202,14 @@ func (worker *Worker) runRound(round int) {
 	//send post as json to all clients
 	for _, playerClient := range worker.Clients {
 		playerClient.Send <- roundJson
-		playerClient.Blocked = false
 	}
 
 	//listen for incoming answers and spawn a handler for handling the answer
-	for i := 0; i < len(worker.Clients); i++ {
-		clientAnswered := <-worker.Incoming
-		if clientAnswered.Blocked {
-			i--
-			continue
-		}
-		worker.handleClientAnswer(clientAnswered, post.Data.Subreddit, &wg)
+	for _, playerClient := range worker.Clients {
+		wg.Add(1)
+		go worker.handleClientAnswer(playerClient, post.Data.Subreddit, &wg)
 	}
+	wg.Wait()
 }
 
 // StillNeeded checks for different conditions to decide if this worker is still needed
@@ -278,5 +271,4 @@ func (worker *Worker) handleClientAnswer(playerClient *Client, correctAnswer str
 		return
 	}
 	playerClient.Send <- msgJson
-	playerClient.Blocked = true
 }

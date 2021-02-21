@@ -1,7 +1,6 @@
 package gameLogic
 
 import (
-	"fmt"
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
 	"github.com/gorilla/websocket"
@@ -90,7 +89,6 @@ func (gm *GameMaster) StartGame(w http.ResponseWriter, r *http.Request) {
 	//Find worker and start game
 	gm.mu.Lock()
 	defer gm.mu.Unlock()
-	fmt.Println(len(gm.Worker))
 	gameWorker, exists := gm.Worker[workerUuid]
 	if !exists {
 		logrus.WithField("UUID", workerUuid).Debug("Tried to join game on worker that does not exist")

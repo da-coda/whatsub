@@ -87,9 +87,8 @@ func (c *Client) readPump() {
 			break
 		}
 		message = bytes.TrimSpace(bytes.Replace(message, newline, space, -1))
-		if c.Worker.State != Closed && !c.Blocked {
+		if c.Worker.State != Closed && len(c.Message) == 0 {
 			c.Message <- message
-			c.Worker.Incoming <- c
 		}
 	}
 }
