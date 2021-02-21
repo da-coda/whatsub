@@ -27,7 +27,10 @@ function joinGame() {
     if (useUuidField) {
         uuid = document.getElementById("joinUuid").value
     }
-    conn = new WebSocket("ws://localhost:8000/game/" + uuid + "/join?name=" + name)
+    var url = new URL('/game/" + uuid + "/join?name=" + name', window.location.href);
+    url.protocol = url.protocol.replace('http', 'ws');
+    url.protocol = url.protocol.replace('https', 'wss');
+    conn = new WebSocket(url.href)
     document.getElementById("join").style.display = "none"
     document.getElementById("lobby").style.display = "block"
 
