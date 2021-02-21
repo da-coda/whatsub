@@ -27,7 +27,7 @@ function joinGame() {
     if (useUuidField) {
         uuid = document.getElementById("joinUuid").value
     }
-    var url = new URL('/game/" + uuid + "/join?name=" + name', window.location.href);
+    var url = new URL("/game/" + uuid + "/join?name=" + name, window.location.href);
     url.protocol = url.protocol.replace('http', 'ws');
     url.protocol = url.protocol.replace('https', 'wss');
     conn = new WebSocket(url.href)
