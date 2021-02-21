@@ -27,7 +27,7 @@ function joinGame() {
     if (useUuidField) {
         uuid = document.getElementById("joinUuid").value
     }
-    conn = new WebSocket("wss://www.whatsub.io/game/" + uuid + "/join?name=" + name)
+    conn = new WebSocket("ws://localhost:8000/game/" + uuid + "/join?name=" + name)
     document.getElementById("join").style.display = "none"
     document.getElementById("lobby").style.display = "block"
 
@@ -53,7 +53,7 @@ function joinGame() {
                 })
                 break;
             case "score":
-                let scoreList = document.getElementById("scoreList").innerHTML = ""
+                document.getElementById("scoreList").innerHTML = ""
                 console.log(msg.Payload.Scores)
                 for (const [key, value] of Object.entries(msg.Payload.Scores)) {
                     document.getElementById("scoreList").innerHTML +=  `<a href="#" class="list-group-item list-group-item-action bg-light"> ${key}: ${value} </a>`
@@ -63,6 +63,7 @@ function joinGame() {
 
             case "answer_correct":
                 document.getElementById(msg.Payload.CorrectAnswer).style.backgroundColor = "green"
+                answered = false
                 break
             default:
                 console.log(event.data)
@@ -77,7 +78,12 @@ function startGame() {
     req.send(null);
 }
 
+let answered = false
+
 function answerPost(answer) {
+    if (answered) {
+        return
+    }
     let payload = {
         Type: "answer",
         Payload: {
@@ -85,6 +91,7 @@ function answerPost(answer) {
         }
     }
     conn.send(JSON.stringify(payload))
+    answered = true
 }
 
 Element.prototype.remove = function () {

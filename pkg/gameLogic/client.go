@@ -34,15 +34,7 @@ type Client struct {
 	Send    chan []byte
 	Message chan []byte
 	Blocked bool
-}
-
-func (c *Client) Close() error {
-	logrus.Debug("Terminating client because Close() got called")
-	close(c.Send)
-	close(c.Message)
-	_ = c.conn.WriteMessage(websocket.CloseMessage, []byte{})
-	_ = c.conn.Close()
-	return nil
+	close   chan bool
 }
 
 func NewClient(conn *websocket.Conn, name string, gameWorker *Worker) {
@@ -50,6 +42,15 @@ func NewClient(conn *websocket.Conn, name string, gameWorker *Worker) {
 	gameWorker.Register <- client
 	go client.readPump()
 	go client.writePump()
+}
+
+func (c *Client) Close() error {
+	logrus.Debug("Terminating client because Close() got called")
+	_ = c.conn.WriteMessage(websocket.CloseMessage, []byte{})
+	close(c.Send)
+	close(c.Message)
+	_ = c.conn.Close()
+	return nil
 }
 
 func (c *Client) readPump() {
@@ -106,6 +107,9 @@ func (c *Client) writePump() {
 	}()
 	for {
 		select {
+		case <-c.close:
+			_ = c.conn.WriteMessage(websocket.CloseMessage, nil)
+			return
 		case message, ok := <-c.Send:
 			err := c.conn.SetWriteDeadline(time.Now().Add(writeWait))
 			if err != nil {
