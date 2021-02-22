@@ -35,17 +35,19 @@ type Client struct {
 	Message chan []byte
 	Blocked bool
 	close   chan bool
+	log     *logrus.Entry
 }
 
 func NewClient(conn *websocket.Conn, name string, gameWorker *Worker) {
 	client := &Client{conn: conn, Name: name, Worker: gameWorker, Send: make(chan []byte, 256), Message: make(chan []byte)}
+	client.log = logrus.WithField("Client", client.Name).WithField("Worker", gameWorker.Id.String())
 	gameWorker.Register <- client
 	go client.readPump()
 	go client.writePump()
 }
 
 func (c *Client) Close() error {
-	logrus.Debug("Terminating client because Close() got called")
+	c.log.Debug("Terminating client because Close() got called")
 	_ = c.conn.WriteMessage(websocket.CloseMessage, []byte{})
 	close(c.Send)
 	close(c.Message)
@@ -55,10 +57,7 @@ func (c *Client) Close() error {
 
 func (c *Client) readPump() {
 	defer func() {
-		logrus.
-			WithField("Worker", c.Worker.Id).
-			WithField("Client", c.Name).
-			Info("Closing websocket for read")
+		c.log.Info("Closing websocket for read")
 		if c.Worker.State != Closed {
 			c.Worker.Unregister <- c
 		}
@@ -66,29 +65,27 @@ func (c *Client) readPump() {
 	c.conn.SetReadLimit(maxMessageSize)
 	err := c.conn.SetReadDeadline(time.Now().Add(pongWait))
 	if err != nil {
-		logrus.WithError(err).
-			WithField("Worker", c.Worker.Id).
-			WithField("Client", c.Name).
-			Error("Unable to set read deadline")
+		c.log.WithError(err).Error("Unable to set read deadline")
 		return
 	}
 	c.conn.SetPongHandler(func(string) error {
-		logrus.WithField("Client", c.Name).WithField("Worker", c.Worker.Id).Trace("Pong")
+		c.log.Trace("Pong")
 		return c.conn.SetReadDeadline(time.Now().Add(pongWait))
 	})
 	for {
 		_, message, err := c.conn.ReadMessage()
 		if err != nil {
 			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
-				logrus.WithError(err).
-					WithField("Worker", c.Worker.Id).
-					WithField("Client", c.Name).
-					Error("Client closed unexpected")
+				c.log.WithError(err).Error("Client closed unexpected")
 			}
 			break
 		}
 		message = bytes.TrimSpace(bytes.Replace(message, newline, space, -1))
-		if c.Worker.State != Closed && len(c.Message) == 0 {
+		if c.Blocked {
+			c.log.WithField("Message", message).Trace("Message on blocked client")
+			continue
+		}
+		if c.Worker.State != Closed {
 			c.Message <- message
 		}
 	}
@@ -97,10 +94,7 @@ func (c *Client) readPump() {
 func (c *Client) writePump() {
 	ticker := time.NewTicker(pingPeriod)
 	defer func() {
-		logrus.
-			WithField("Worker", c.Worker.Id).
-			WithField("Client", c.Name).
-			Info("Closing websocket for write")
+		c.log.Info("Closing websocket for write")
 
 		ticker.Stop()
 		_ = c.conn.Close()
@@ -113,10 +107,7 @@ func (c *Client) writePump() {
 		case message, ok := <-c.Send:
 			err := c.conn.SetWriteDeadline(time.Now().Add(writeWait))
 			if err != nil {
-				logrus.WithError(err).
-					WithField("Worker", c.Worker.Id).
-					WithField("Client", c.Name).
-					Error("Unable to set write deadline")
+				c.log.WithError(err).Error("Unable to set write deadline")
 				return
 			}
 			if !ok {
@@ -129,35 +120,23 @@ func (c *Client) writePump() {
 			}
 			_, err = w.Write(message)
 			if err != nil {
-				logrus.WithError(err).
-					WithField("Worker", c.Worker.Id).
-					WithField("Client", c.Name).
-					Error("Unable to write message")
+				c.log.WithError(err).Error("Unable to write message")
 			}
 			if err := w.Close(); err != nil {
 				if err != nil {
-					logrus.WithError(err).
-						WithField("Worker", c.Worker.Id).
-						WithField("Client", c.Name).
-						Error("Unable to close writer")
+					c.log.WithError(err).Error("Unable to close writer")
 				}
 				return
 			}
 		case <-ticker.C:
-			logrus.WithField("Client", c.Name).WithField("Worker", c.Worker.Id).Trace("Ping")
+			c.log.Trace("Ping")
 			err := c.conn.SetWriteDeadline(time.Now().Add(writeWait))
 			if err != nil {
-				logrus.WithError(err).
-					WithField("Worker", c.Worker.Id).
-					WithField("Client", c.Name).
-					Error("Unable to set write deadline")
+				c.log.WithError(err).Error("Unable to set write deadline")
 			}
 			if err := c.conn.WriteMessage(websocket.PingMessage, nil); err != nil {
 				if err != nil {
-					logrus.WithError(err).
-						WithField("Worker", c.Worker.Id).
-						WithField("Client", c.Name).
-						Info("Ping didn't reach client")
+					c.log.WithError(err).Info("Ping didn't reach client")
 				}
 				return
 			}

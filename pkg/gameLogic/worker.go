@@ -5,6 +5,7 @@ import (
 	"github.com/da-coda/whatsub/lib/reddit/types"
 	"github.com/da-coda/whatsub/pkg/gameLogic/messages"
 	"github.com/da-coda/whatsub/pkg/redditHelper"
+	"github.com/da-coda/whatsub/pkg/utils"
 	"github.com/google/uuid"
 	"github.com/sirupsen/logrus"
 	"math/rand"
@@ -30,39 +31,47 @@ const (
 //Worker handles a single game, holds all participating clients and needed resources for the game
 type Worker struct {
 	Id          uuid.UUID
-	Clients     map[string]*Client
+	ShortId     string
+	Clients     sync.Map
 	Posts       []types.Post
 	Subreddits  []string
 	Host        string
-	Rounds      int
+	RoundsTotal int
 	Created     time.Time
 	LobbyOpened time.Time
 	Register    chan *Client
 	Unregister  chan *Client
 	State       State
+	ClientCount uint64
+	log         *logrus.Entry
 }
 
 //NewWorker creates a new Worker and setups channels
 func NewWorker() *Worker {
 	w := &Worker{
-		Id:         uuid.New(),
-		Rounds:     10,
-		Created:    time.Now(),
-		State:      Created,
-		Register:   make(chan *Client, 256),
-		Unregister: make(chan *Client, 256),
-		Clients:    make(map[string]*Client),
+		Id:          uuid.New(),
+		ShortId:     utils.KeyGenerator(8),
+		RoundsTotal: 10,
+		Created:     time.Now(),
+		State:       Created,
+		Register:    make(chan *Client, 256),
+		Unregister:  make(chan *Client, 256),
+		Clients:     sync.Map{},
+		ClientCount: 0,
 	}
+	w.log = logrus.WithField("Worker", w.Id.String())
 	return w
 }
 
 //Close implements the io.Closer interface and closes all channels and calls Client.Close on all connected clients
 func (worker *Worker) Close() error {
 	worker.State = Closed
-	logrus.WithField("Worker", worker.Id).Debug("Terminating worker because Close() got called")
-	for _, client := range worker.Clients {
+	worker.log.Debug("Terminating worker because Close() got called")
+	worker.Clients.Range(func(_, value interface{}) bool {
+		client := value.(*Client)
 		worker.Unregister <- client
-	}
+		return true
+	})
 	close(worker.Register)
 	return nil
 }
@@ -70,7 +79,7 @@ func (worker *Worker) Close() error {
 //OpenLobby checks if a new worker registers while the worker State is Open
 func (worker *Worker) OpenLobby() {
 	worker.LobbyOpened = time.Now()
-	logrus.WithField("Worker", worker.Id).Debug("Open Lobby")
+	worker.log.Debug("Open Lobby")
 	worker.State = Open
 	go worker.DisconnectHandler()
 	//create a ticker and use it in our loop that checks for new registers so that at least every second the loop condition
@@ -81,14 +90,15 @@ func (worker *Worker) OpenLobby() {
 		select {
 		case gameClient, open := <-worker.Register:
 			if open {
-				logrus.WithField("Worker", worker.Id).Debug("Player joined")
-				worker.Clients[gameClient.Name] = gameClient
+				worker.ClientCount++
+				worker.log.WithField("Name", gameClient.Name).Debug("Player joined")
+				worker.Clients.Store(gameClient.Name, gameClient)
 			}
 		case <-ticker.C:
 			continue
 		}
 	}
-	logrus.WithField("Worker", worker.Id).Debug("Closing Lobby")
+	worker.log.Debug("Closing Lobby")
 }
 
 //DisconnectHandler listens on the Unregister channel and removes clients that unregistered themselves
@@ -100,11 +110,12 @@ func (worker *Worker) DisconnectHandler() {
 		select {
 		case gameClient, open := <-worker.Unregister:
 			if open {
-				logrus.WithField("Worker", worker.Id).Debug("Player disconnected")
+				worker.log.Debug("Player disconnected")
 				if gameClient != nil {
+					worker.Clients.Delete(gameClient.Name)
 					_ = gameClient.Close()
+					worker.ClientCount--
 				}
-				delete(worker.Clients, gameClient.Name)
 			}
 		case <-ticker.C:
 			continue
@@ -118,26 +129,30 @@ func (worker *Worker) RunGame() {
 		return
 	}
 	worker.State = Started
-	logrus.WithField("Worker", worker.Id).Debug("Starting Game")
+	worker.log.Debug("Starting Game")
 	worker.preparePosts()
 
-	// run Worker.Rounds rounds
-	for i := 0; i < worker.Rounds; i++ {
+	// run Worker.RoundsTotal rounds
+	for i := 0; i < worker.RoundsTotal; i++ {
 		worker.runRound(i)
 		msg := messages.NewScoreMessage()
-		for name, conn := range worker.Clients {
-			msg.Payload.Scores[name] = conn.Score
-		}
+		worker.Clients.Range(func(key, value interface{}) bool {
+			name := key.(string)
+			client := value.(*Client)
+			msg.Payload.Scores[name] = client.Score
+			return true
+		})
 		msgJson, err := json.Marshal(msg)
 		if err != nil {
-			logrus.WithError(err).
-				WithField("Worker", worker.Id).
+			worker.log.WithError(err).
 				Error("Unable to marshal score message to json")
 			continue
 		}
-		for _, conn := range worker.Clients {
-			conn.Send <- msgJson
-		}
+		worker.Clients.Range(func(_, value interface{}) bool {
+			client := value.(*Client)
+			client.Send <- msgJson
+			return true
+		})
 		time.Sleep(2 * time.Second)
 	}
 	//set State to Done so that the clean up routine of GameMaster can handle the termination of the worker and clients
@@ -146,12 +161,12 @@ func (worker *Worker) RunGame() {
 
 //preparePosts collects subreddits and posts for those subreddits, shuffles them around and adds them to the worker
 func (worker *Worker) preparePosts() {
-	logrus.WithField("Worker", worker.Id).Debug("Preparing Posts")
+	worker.log.Debug("Preparing Posts")
 	//collect subreddits and posts
 	subreddits := redditHelper.GetTopSubreddits()
 	links, err := redditHelper.GetTopPostsForSubreddits(subreddits, 5)
 	if err != nil {
-		logrus.WithError(err).Error("Unable to prepare posts")
+		worker.log.WithError(err).Error("Unable to prepare posts")
 	}
 	//merge all posts from all subreddits into a single slice
 	var posts []types.Post
@@ -171,7 +186,7 @@ func (worker *Worker) preparePosts() {
 
 //runRound handles a single round by parsing a post into the RoundMessage struct, sending it to all clients and spawning a handler for incoming answers
 func (worker *Worker) runRound(round int) {
-	logrus.WithField("Worker", worker.Id).WithField("Round", round).Info("Starting Round")
+	worker.log.WithField("Round", round).Info("Starting Round")
 	var wg sync.WaitGroup
 
 	//get the post for this round
@@ -185,7 +200,7 @@ func (worker *Worker) runRound(round int) {
 	//Parse the post into our RoundMessage format and marshal it to json
 	roundMessage := messages.NewRoundMessage()
 	roundMessage.Payload.Number = round
-	roundMessage.Payload.From = worker.Rounds
+	roundMessage.Payload.From = worker.RoundsTotal
 	roundMessage.Payload.Post.Title = post.Data.Title
 	roundMessage.Payload.Post.Content = postText
 	roundMessage.Payload.Post.Type = post.GetType()
@@ -193,22 +208,23 @@ func (worker *Worker) runRound(round int) {
 	roundMessage.Payload.Subreddits = worker.Subreddits
 	roundJson, err := json.Marshal(roundMessage)
 	if err != nil {
-		logrus.WithError(err).
-			WithField("Worker", worker.Id).
+		worker.log.WithError(err).
 			Error("Unable to marshal round message to json")
 		return
 	}
 
-	//send post as json to all clients
-	for _, playerClient := range worker.Clients {
-		playerClient.Send <- roundJson
-	}
-
-	//listen for incoming answers and spawn a handler for handling the answer
-	for _, playerClient := range worker.Clients {
+	worker.Clients.Range(func(_, value interface{}) bool {
+		client := value.(*Client)
+		//flush messages still in channel before starting next round
+		for i := 0; i < len(client.Message); i++ {
+			worker.log.Trace(<-client.Message)
+		}
+		client.Send <- roundJson
+		client.Blocked = false
 		wg.Add(1)
-		go worker.handleClientAnswer(playerClient, post.Data.Subreddit, &wg)
-	}
+		go worker.handleClientAnswer(client, post.Data.Subreddit, &wg)
+		return true
+	})
 	wg.Wait()
 }
 
@@ -216,25 +232,31 @@ func (worker *Worker) runRound(round int) {
 func (worker *Worker) StillNeeded() bool {
 	// All rounds are played, game is done
 	if worker.State == Done {
-		logrus.Debug("Game is done")
+		worker.log.Debug("Game is done")
 		return false
 	}
 
 	// Lobby been open for EmptyLobbyTimeout minutes without anyone joining
-	if worker.State == Open && len(worker.Clients) == 0 && worker.LobbyOpened.Add(EmptyLobbyTimeout).Before(time.Now()) {
-		logrus.Debug("Lobby been empty for too long")
+	if worker.State == Open && worker.ClientCount == 0 && worker.LobbyOpened.Add(EmptyLobbyTimeout).Before(time.Now()) {
+		worker.log.Debug("Lobby been empty for too long")
 		return false
 	}
 
 	// Lobby been open for LobbyNotStartedTimeout without starting the game
 	if worker.State == Open && worker.LobbyOpened.Add(LobbyNotStartedTimeout).Before(time.Now()) {
-		logrus.Debug("Lobby been open for too long")
+		worker.log.Debug("Lobby been open for too long")
 		return false
 	}
 
 	// Worker got created but game didn't start within the duration InactiveNotStartedTimeout
 	if worker.State == Created && worker.Created.Add(InactiveNotStartedTimeout).Before(time.Now()) {
-		logrus.Debug("Game never started")
+		worker.log.Debug("Game never started")
+		return false
+	}
+
+	// All clients left during the game
+	if worker.State == Started && worker.ClientCount == 0 {
+		worker.log.Debug("Game abandoned")
 		return false
 	}
 
@@ -245,15 +267,19 @@ func (worker *Worker) StillNeeded() bool {
 func (worker *Worker) handleClientAnswer(playerClient *Client, correctAnswer string, wg *sync.WaitGroup) {
 	defer wg.Done()
 	//receive answer from client
-	answerJson := <-playerClient.Message
+	answerJson, ok := <-playerClient.Message
+	if !ok {
+		return
+	}
+	playerClient.Blocked = true
 	var answerMessage messages.Answer
 	err := answerMessage.Parse(answerJson)
 	if err != nil {
-		logrus.WithError(err).Error("Unable to parse answer message")
+		worker.log.WithError(err).Error("Unable to parse answer message")
 		return
 	}
 	answer := answerMessage.Payload.Answer
-	logrus.WithField("Worker", worker.Id).WithField("Client", playerClient.Name).WithField("Answer", answer).Debug("Client answered")
+	worker.log.WithField("Client", playerClient.Name).WithField("Answer", answer).Trace("Client answered")
 
 	msg := messages.NewAnswerCorrectnessMessage()
 	msg.Payload.Correct = strings.Compare(string(answer), correctAnswer) == 0
@@ -265,10 +291,10 @@ func (worker *Worker) handleClientAnswer(playerClient *Client, correctAnswer str
 	//notify client if correct or not
 	msgJson, err := json.Marshal(msg)
 	if err != nil {
-		logrus.WithError(err).
-			WithField("Worker", worker.Id).
+		worker.log.WithError(err).
 			Error("Unable to marshal answer correctness message to json")
 		return
 	}
 	playerClient.Send <- msgJson
+
 }

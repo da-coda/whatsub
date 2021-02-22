@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"github.com/da-coda/whatsub/pkg/gameLogic"
+	"github.com/da-coda/whatsub/pkg/gameLogic/messages"
 	"github.com/gorilla/mux"
 	"github.com/sirupsen/logrus"
 	"log"
@@ -18,7 +19,7 @@ func main() {
 	gm := gameLogic.NewGameMaster()
 	router := mux.NewRouter()
 	router.HandleFunc("/game/create", CreateGameHandler(gm))
-	router.HandleFunc("/game/{uuid}/join", gm.JoinGame).Queries("name", "{name}")
+	router.HandleFunc("/game/{uuid_or_key}/join", gm.JoinGame).Queries("name", "{name}")
 	router.HandleFunc("/game/{uuid}/start", gm.StartGame)
 	router.PathPrefix("/").HandlerFunc(ServeWebpage).Methods("GET")
 	srv := &http.Server{
@@ -33,8 +34,10 @@ func main() {
 
 func CreateGameHandler(gm *gameLogic.GameMaster) func(writer http.ResponseWriter, request *http.Request) {
 	return func(writer http.ResponseWriter, request *http.Request) {
-		uuid := gm.CreateGame()
-		response := map[string]string{"uuid": uuid.String()}
+		uuid, key := gm.CreateGame()
+		response := messages.NewCreatedGameMessage()
+		response.Payload.UUID = uuid.String()
+		response.Payload.Key = key
 		payload, err := json.Marshal(response)
 		if err != nil {
 			writer.WriteHeader(500)

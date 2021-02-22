@@ -1,12 +1,26 @@
-let conn;
-let uuid = "";
-let useUuidField = false;
+let conn
+let uuid = ""
+let useUuidField = false
+let joinUrl = ""
+
+window.onload = function(){
+    var pathArray = window.location.pathname.split('/');
+    console.log(pathArray)
+    if(pathArray[1] === "joinMe") {
+        uuid = pathArray[2]
+        document.getElementById("start").style.display = "none"
+        document.getElementById("join").style.display = "block"
+    }
+}
 
 function createGame() {
     var req = new XMLHttpRequest()
     req.onreadystatechange = function () {
         if (req.readyState === 4 && req.status === 200) {
-            uuid = JSON.parse(req.responseText).uuid
+            let response = JSON.parse(req.responseText);
+            uuid = response.Payload.UUID
+            joinUrl = new URL("/joinMe/" + response.Payload.Key, window.location.href);
+            document.getElementById("joinUrl").innerText = joinUrl
         }
         document.getElementById("start").style.display = "none"
         document.getElementById("join").style.display = "block"
@@ -38,6 +52,7 @@ function joinGame() {
         var msg = JSON.parse(event.data);
         switch (msg.Type) {
             case "round":
+                answered = false
                 document.getElementById("lobby").style.display = "none"
                 document.getElementById("round").style.display = "block"
                 document.getElementById("buttons").innerHTML = ""
@@ -66,7 +81,6 @@ function joinGame() {
 
             case "answer_correct":
                 document.getElementById(msg.Payload.CorrectAnswer).style.backgroundColor = "green"
-                answered = false
                 break
             default:
                 console.log(event.data)
@@ -104,4 +118,12 @@ Element.prototype.remove = function () {
 function htmlDecode(input) {
     var doc = new DOMParser().parseFromString(input, "text/html");
     return doc.documentElement.textContent;
+}
+
+function copyJoinUrl() {
+    navigator.clipboard.writeText(joinUrl).then(function() {
+        console.log('Async: Copying to clipboard was successful!');
+    }, function(err) {
+        console.error('Async: Could not copy text: ', err);
+    });
 }
