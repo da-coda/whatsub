@@ -9,8 +9,6 @@ import (
 	"log"
 	"net/http"
 	_ "net/http/pprof"
-	"os"
-	"path/filepath"
 	"time"
 )
 
