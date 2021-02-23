@@ -1,14 +1,16 @@
 <template>
-  <StartScreen/>
+  <div id="nav">
+    <router-link to="/">Home</router-link> |
+    <router-link to="/about">About</router-link>
+  </div>
+  <router-view/>
 </template>
 
 <script>
-import StartScreen from '@/components/StartScreen'
 
 export default {
   name: 'App',
   components: {
-    StartScreen
   }
 }
 </script>
