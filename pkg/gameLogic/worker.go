@@ -7,6 +7,7 @@ import (
 	"github.com/da-coda/whatsub/pkg/redditHelper"
 	"github.com/da-coda/whatsub/pkg/utils"
 	"github.com/google/uuid"
+	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	"math/rand"
 	"strings"
@@ -30,20 +31,21 @@ const (
 
 //Worker handles a single game, holds all participating clients and needed resources for the game
 type Worker struct {
-	Id          uuid.UUID
-	ShortId     string
-	Clients     sync.Map
-	Posts       []types.Post
-	Subreddits  []string
-	Host        string
-	RoundsTotal int
-	Created     time.Time
-	LobbyOpened time.Time
-	Register    chan *Client
-	Unregister  chan *Client
-	State       State
-	ClientCount uint64
-	log         *logrus.Entry
+	Id            uuid.UUID
+	ShortId       string
+	Clients       sync.Map
+	Posts         []types.Post
+	Subreddits    []string
+	Host          string
+	CreatorIpHash string
+	RoundsTotal   int
+	Created       time.Time
+	LobbyOpened   time.Time
+	Register      chan *Client
+	Unregister    chan *Client
+	State         State
+	ClientCount   uint64
+	log           *logrus.Entry
 }
 
 //NewWorker creates a new Worker and setups channels
@@ -130,7 +132,12 @@ func (worker *Worker) RunGame() {
 	}
 	worker.State = Started
 	worker.log.Debug("Starting Game")
-	worker.preparePosts()
+	err := worker.preparePosts()
+	if err != nil {
+		worker.log.WithError(err).Error("Failed to prepare posts. Game won't start!")
+		worker.State = Done
+		return
+	}
 
 	// run Worker.RoundsTotal rounds
 	for i := 0; i < worker.RoundsTotal; i++ {
@@ -160,13 +167,16 @@ func (worker *Worker) RunGame() {
 }
 
 //preparePosts collects subreddits and posts for those subreddits, shuffles them around and adds them to the worker
-func (worker *Worker) preparePosts() {
+func (worker *Worker) preparePosts() error {
 	worker.log.Debug("Preparing Posts")
 	//collect subreddits and posts
-	subreddits := redditHelper.GetTopSubreddits()
-	links, err := redditHelper.GetTopPostsForSubreddits(subreddits, 5)
+	subreddits, err := redditHelper.GetTopSubreddits(10)
 	if err != nil {
-		worker.log.WithError(err).Error("Unable to prepare posts")
+		return errors.Wrap(err, "Failed to prepare posts")
+	}
+	links, err := redditHelper.GetTopPostsForSubreddits(subreddits.GetSubPaths(), 5)
+	if err != nil {
+		return errors.Wrap(err, "Failed to prepare posts")
 	}
 	//merge all posts from all subreddits into a single slice
 	var posts []types.Post
@@ -178,10 +188,10 @@ func (worker *Worker) preparePosts() {
 		}
 	}
 	//shuffle slice randomly and add them to the worker
-	rand.Seed(time.Now().UnixNano())
 	rand.Shuffle(len(posts), func(i, j int) { posts[i], posts[j] = posts[j], posts[i] })
 	worker.Posts = posts
-	worker.Subreddits = subreddits
+	worker.Subreddits = subreddits.GetSubPaths()
+	return nil
 }
 
 //runRound handles a single round by parsing a post into the RoundMessage struct, sending it to all clients and spawning a handler for incoming answers

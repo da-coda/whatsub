@@ -1,11 +1,14 @@
 package main
 
 import (
+	"crypto/md5"
 	"encoding/json"
+	"github.com/da-coda/whatsub/pkg/database"
 	"github.com/da-coda/whatsub/pkg/gameLogic"
 	"github.com/da-coda/whatsub/pkg/gameLogic/messages"
 	"github.com/gorilla/mux"
 	"github.com/sirupsen/logrus"
+	"io"
 	"log"
 	"net/http"
 	_ "net/http/pprof"
@@ -16,6 +19,11 @@ import (
 
 func main() {
 	logrus.SetLevel(logrus.DebugLevel)
+	err := database.InitDB()
+	if err != nil {
+		logrus.WithError(err).Error("Unable to connect to DB")
+		os.Exit(1)
+	}
 	gm := gameLogic.NewGameMaster()
 	router := mux.NewRouter()
 	router.HandleFunc("/game/create", CreateGameHandler(gm))
@@ -34,7 +42,12 @@ func main() {
 
 func CreateGameHandler(gm *gameLogic.GameMaster) func(writer http.ResponseWriter, request *http.Request) {
 	return func(writer http.ResponseWriter, request *http.Request) {
-		uuid, key := gm.CreateGame()
+		hash := md5.New()
+		_, err := io.WriteString(hash, request.RemoteAddr)
+		if err != nil {
+			logrus.WithError(err).Error("Unable to hash ip address")
+		}
+		uuid, key := gm.CreateGame(hash)
 		response := messages.NewCreatedGameMessage()
 		response.Payload.UUID = uuid.String()
 		response.Payload.Key = key

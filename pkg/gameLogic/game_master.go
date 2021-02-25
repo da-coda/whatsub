@@ -5,6 +5,7 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/gorilla/websocket"
 	"github.com/sirupsen/logrus"
+	"hash"
 	"net/http"
 	"sync"
 	"time"
@@ -14,10 +15,15 @@ var upgrader = websocket.Upgrader{CheckOrigin: func(r *http.Request) bool {
 	return true
 }}
 
+const (
+	MaxAllowedGamesPerIP = 5
+)
+
 //GameMaster is the central entrypoint and handler for all running games and creating games
 type GameMaster struct {
-	Worker         sync.Map
-	workerShortIds sync.Map
+	Worker                sync.Map
+	workerShortIds        sync.Map
+	hashedIpsRunningGames sync.Map
 }
 
 //NewGameMaster creates a new GameMaster and starts the cleanUp routine for this game master
@@ -29,12 +35,22 @@ func NewGameMaster() *GameMaster {
 
 //CreateGame is the main entrypoint for creating new games. It spawns a new Worker and puts the worker into the GameMaster.Worker map.
 //Also starts the lobby for the created Worker and returns the UUID for the worker
-func (gm *GameMaster) CreateGame() (uuid.UUID, string) {
+func (gm *GameMaster) CreateGame(hashedIp hash.Hash) (uuid.UUID, string) {
+	sum := string(hashedIp.Sum(nil))
+	gamesRunning, hasGamesRunning := gm.hashedIpsRunningGames.Load(sum)
+	if hasGamesRunning && gamesRunning.(int) >= MaxAllowedGamesPerIP {
+		return [16]byte{}, ""
+	}
+	if gamesRunning == nil {
+		gamesRunning = 0
+	}
 	gameWorker := NewWorker()
+	gameWorker.CreatorIpHash = string(sum)
 	gm.Worker.Store(gameWorker.Id, gameWorker)
 	gm.workerShortIds.Store(gameWorker.ShortId, gameWorker.Id)
 	//OpenLobby on newly created game so that players can directly join
 	go gameWorker.OpenLobby()
+	gm.hashedIpsRunningGames.Store(sum, 1+gamesRunning.(int))
 	return gameWorker.Id, gameWorker.ShortId
 }
 
