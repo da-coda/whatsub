@@ -120,6 +120,9 @@ func (gm *GameMaster) cleanUp() {
 			workerId := key.(uuid.UUID)
 			gameWorker := value.(*Worker)
 			if !gameWorker.StillNeeded() {
+				hashedIp := gameWorker.CreatorIpHash
+				gamesRunning, _ := gm.hashedIpsRunningGames.Load(hashedIp)
+				gm.hashedIpsRunningGames.Store(hashedIp, 1+gamesRunning.(int))
 				logrus.WithField("Worker", workerId.String()).Debug("Removing worker in clean up")
 				_ = gameWorker.Close()
 				gm.Worker.Delete(workerId)
