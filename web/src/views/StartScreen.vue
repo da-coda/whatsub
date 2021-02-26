@@ -10,7 +10,7 @@
           <el-button
             type="primary"
             style="width: 200px"
-            @click="getNewGameUUID"
+            @click="openNewGame"
           >
             Start new Game
           </el-button>
@@ -53,10 +53,11 @@ export default {
       }
       )
     },
-    getNewGameUUID () {
-      this.$http.get('/game/create').then((response) => {
+    async openNewGame () {
+      await this.$http.get('/game/create').then((response) => {
+        // TODO Error handling
         this.$store.commit('setGameId', response.data.Payload.UUID)
-        console.log(response.data)
+        this.$router.push('/newGame')
       })
     }
   }
