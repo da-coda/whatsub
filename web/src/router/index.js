@@ -8,9 +8,9 @@ const routes = [
     component: StartScreen
   },
   {
-    path: '/newGame',
+    path: '/game/join/:code',
     name: 'NewGame',
-    component: () => import(/* webpackChunkName: "about" */ '../views/NewGame.vue')
+    component: () => import(/* webpackChunkName: "about" */ '../views/GameLobby.vue')
   }
 ]
 

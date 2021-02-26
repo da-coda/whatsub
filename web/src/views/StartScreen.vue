@@ -57,7 +57,8 @@ export default {
       await this.$http.get('/game/create').then((response) => {
         // TODO Error handling
         this.$store.commit('setGameId', response.data.Payload.UUID)
-        this.$router.push('/newGame')
+        this.$store.commit('setGameHead', true)
+        this.$router.push('/game/join/' + response.data.Payload.Key)
       })
     }
   }

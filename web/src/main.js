@@ -6,8 +6,16 @@ import store from './store'
 import axios from 'axios'
 import VueAxios from 'vue-axios'
 
+// Subscribe to store updates
+store.subscribe((mutation, state) => {
+  // Store the state object as a JSON string
+  localStorage.setItem('store', JSON.stringify(state))
+})
+store.commit('initialiseStore')
+
 const app = createApp(App)
-app.use(store) // TODO replace with react if possible
+
+app.use(store)
 app.use(router)
 app.use(VueAxios, axios)
 
