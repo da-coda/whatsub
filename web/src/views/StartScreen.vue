@@ -1,29 +1,30 @@
 <template>
   <el-container>
-    <el-header>
+    <el-header height="120px">
       <h1>WhatSub?</h1>
+      <h3>Battle against your friends and find out who knows Reddit the best!</h3>
     </el-header>
     <el-main>
       <el-row>
         <el-col>
-          <button
-            type="button"
+          <el-button
+            type="primary"
             style="width: 200px"
-            @click="$router.push('/newGame')"
+            @click="getNewGameUUID"
           >
             Start new Game
-          </button>
+          </el-button>
         </el-col>
       </el-row>
       <el-row>
         <el-col>
-          <button
-            type="button"
+          <el-button
+            type="success"
             style="width: 200px; margin-top: 10px"
             @click="enterGameCode"
           >
             Join Lobby
-          </button>
+          </el-button>
         </el-col>
       </el-row>
     </el-main>
@@ -51,6 +52,12 @@ export default {
         })
       }
       )
+    },
+    getNewGameUUID () {
+      this.$http.get('/game/create').then((response) => {
+        this.$store.commit('setGameId', response.data.Payload.UUID)
+        console.log(response.data)
+      })
     }
   }
 }
