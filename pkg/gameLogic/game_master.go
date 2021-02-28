@@ -45,7 +45,7 @@ func (gm *GameMaster) CreateGame(hashedIp hash.Hash) (uuid.UUID, string) {
 		gamesRunning = 0
 	}
 	gameWorker := NewWorker()
-	gameWorker.CreatorIpHash = string(sum)
+	gameWorker.CreatorIpHash = sum
 	gm.Worker.Store(gameWorker.Id, gameWorker)
 	gm.workerShortIds.Store(gameWorker.ShortId, gameWorker.Id)
 	//OpenLobby on newly created game so that players can directly join

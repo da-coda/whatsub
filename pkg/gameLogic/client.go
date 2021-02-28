@@ -39,7 +39,7 @@ type Client struct {
 }
 
 func NewClient(conn *websocket.Conn, name string, gameWorker *Worker) {
-	client := &Client{conn: conn, Name: name, Worker: gameWorker, Send: make(chan []byte, 256), Message: make(chan []byte)}
+	client := &Client{conn: conn, Name: name, Worker: gameWorker, Send: make(chan []byte, 256), Message: make(chan []byte), close: make(chan bool)}
 	client.log = logrus.WithField("Client", client.Name).WithField("Worker", gameWorker.Id.String())
 	gameWorker.Register <- client
 	go client.readPump()
@@ -48,10 +48,9 @@ func NewClient(conn *websocket.Conn, name string, gameWorker *Worker) {
 
 func (c *Client) Close() error {
 	c.log.Debug("Terminating client because Close() got called")
-	_ = c.conn.WriteMessage(websocket.CloseMessage, []byte{})
+	c.close <- true
 	close(c.Send)
 	close(c.Message)
-	_ = c.conn.Close()
 	return nil
 }
 

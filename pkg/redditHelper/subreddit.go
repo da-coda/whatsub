@@ -26,16 +26,19 @@ func GetTopSubreddits(limit int) (Subreddits, error) {
 	var subreddits Subreddits
 	db := database.GetConn()
 	ctx := context.Background()
-	txx, err := db.BeginTxx(ctx, nil)
+	timeout, cancelFunc := context.WithTimeout(ctx, 2*time.Second)
+	txx, err := db.BeginTxx(timeout, nil)
+	if err != nil {
+		cancelFunc()
+		return Subreddits{}, errors.Wrap(err, "Unable to start transaction")
+	}
 	defer func() {
 		err := txx.Commit()
+		cancelFunc()
 		if err != nil {
 			logrus.WithError(err).Error("Unable to close transaction")
 		}
 	}()
-	if err != nil {
-		return Subreddits{}, errors.Wrap(err, "Unable to start transaction")
-	}
 	rows, err := txx.Queryx(TopSubreddits, limit)
 	if err != nil {
 		return Subreddits{}, errors.Wrap(err, "Unable to query db")
