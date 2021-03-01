@@ -15,7 +15,6 @@ const app = createApp(App)
 
 app.use(store)
 app.use(router)
-app.use(whatsub)
 
 app.use(ElButton)
   .use(ElContainer)
