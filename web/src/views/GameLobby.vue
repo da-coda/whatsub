@@ -7,7 +7,7 @@
       <h3>Let the battle begin!</h3>
     </el-header>
     <el-main>
-      <p>{{ this.$store.state.gameId }}</p>
+      <p>Copy this link to invite others: {{ gameLink }} or ask them to join a game with this code {{ code }}</p>
       <button
         v-if="isGameHead"
         type="button"
@@ -30,7 +30,10 @@ export default {
   },
   computed: {
     isGameHead () {
-      return this.$store.getters.isGameHead
+      return this.$store.state.isGameHead
+    },
+    gameLink () {
+      return window.location.protocol + '//' + window.location.host + this.$route.path
     }
   },
   methods: {}
