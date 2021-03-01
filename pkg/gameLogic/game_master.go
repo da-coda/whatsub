@@ -3,17 +3,12 @@ package gameLogic
 import (
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
-	"github.com/gorilla/websocket"
 	"github.com/sirupsen/logrus"
 	"hash"
 	"net/http"
 	"sync"
 	"time"
 )
-
-var upgrader = websocket.Upgrader{CheckOrigin: func(r *http.Request) bool {
-	return true
-}}
 
 const (
 	MaxAllowedGamesPerIP = 5
@@ -46,10 +41,12 @@ func (gm *GameMaster) CreateGame(hashedIp hash.Hash) (uuid.UUID, string) {
 	}
 	gameWorker := NewWorker()
 	gameWorker.CreatorIpHash = sum
+	gameWorker.LobbyOpened = time.Now()
+	gameWorker.State = Open
+	go gameWorker.DisconnectHandler()
+
 	gm.Worker.Store(gameWorker.Id, gameWorker)
 	gm.workerShortIds.Store(gameWorker.ShortId, gameWorker.Id)
-	//OpenLobby on newly created game so that players can directly join
-	go gameWorker.OpenLobby()
 	gm.hashedIpsRunningGames.Store(sum, 1+gamesRunning.(int))
 	return gameWorker.Id, gameWorker.ShortId
 }
@@ -59,7 +56,6 @@ func (gm *GameMaster) JoinGame(w http.ResponseWriter, r *http.Request) {
 	//get needed params from join request
 	vars := mux.Vars(r)
 	workerId := vars["uuid_or_key"]
-	playerName := r.FormValue("name")
 
 	//Parse uuid and find matching worker
 	workerUuid, err := uuid.Parse(workerId)
@@ -79,15 +75,7 @@ func (gm *GameMaster) JoinGame(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(404)
 		return
 	}
-
-	//Upgrade connection to websocket and create new client
-	c, err := upgrader.Upgrade(w, r, nil)
-	if err != nil {
-		logrus.WithError(err).Error("Unable to upgrade to websocket connection")
-		return
-	}
-
-	NewClient(c, playerName, gameWorker.(*Worker))
+	gameWorker.(*Worker).Join(w, r)
 }
 
 //StartGame runs Worker.RunGame for given uuid and if worker exists

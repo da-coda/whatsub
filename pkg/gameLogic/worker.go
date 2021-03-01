@@ -7,9 +7,11 @@ import (
 	"github.com/da-coda/whatsub/pkg/redditHelper"
 	"github.com/da-coda/whatsub/pkg/utils"
 	"github.com/google/uuid"
+	"github.com/gorilla/websocket"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	"math/rand"
+	"net/http"
 	"strings"
 	"sync"
 	"time"
@@ -18,6 +20,10 @@ import (
 const InactiveNotStartedTimeout = 1 * time.Hour
 const EmptyLobbyTimeout = 10 * time.Minute
 const LobbyNotStartedTimeout = 30 * time.Minute
+
+var upgrader = websocket.Upgrader{CheckOrigin: func(r *http.Request) bool {
+	return true
+}}
 
 type State int
 
@@ -35,6 +41,7 @@ type Worker struct {
 	ShortId       string
 	Clients       sync.Map
 	Posts         []types.Post
+	Score         sync.Map
 	Subreddits    []string
 	Host          string
 	CreatorIpHash string
@@ -79,28 +86,36 @@ func (worker *Worker) Close() error {
 }
 
 //OpenLobby checks if a new worker registers while the worker State is Open
-func (worker *Worker) OpenLobby() {
-	worker.LobbyOpened = time.Now()
-	worker.log.Debug("Open Lobby")
-	worker.State = Open
-	go worker.DisconnectHandler()
-	//create a ticker and use it in our loop that checks for new registers so that at least every second the loop condition
-	//is checked even without register event so that the lobby can be closed correctly
-	ticker := time.NewTicker(1 * time.Second)
-	defer ticker.Stop()
-	for worker.State == Open {
-		select {
-		case gameClient, open := <-worker.Register:
-			if open {
-				worker.ClientCount++
-				worker.log.WithField("Name", gameClient.Name).Debug("Player joined")
-				worker.Clients.Store(gameClient.Name, gameClient)
-			}
-		case <-ticker.C:
-			continue
-		}
+func (worker *Worker) Join(w http.ResponseWriter, r *http.Request) {
+	playerName := r.FormValue("name")
+	playerUUIDstring := r.FormValue("uuid")
+	playerUUID, err := uuid.Parse(playerUUIDstring)
+	if err != nil {
+		worker.log.WithError(err).Error("invalid uuid")
+		w.WriteHeader(400)
+		return
 	}
-	worker.log.Debug("Closing Lobby")
+	switch worker.State {
+	case Started:
+		if _, exists := worker.Score.Load(playerUUIDstring); exists {
+			client, err := worker.join(w, r, playerName, playerUUID)
+			if err != nil {
+				return
+			}
+			client.Send <- []byte("Welcome back")
+			return
+		}
+		w.WriteHeader(400)
+		return
+	case Open:
+		client, err := worker.join(w, r, playerName, playerUUID)
+		if err != nil {
+			return
+		}
+		worker.Score.Store(client.uuid.String(), 0)
+	default:
+		w.WriteHeader(400)
+	}
 }
 
 //DisconnectHandler listens on the Unregister channel and removes clients that unregistered themselves
@@ -114,7 +129,7 @@ func (worker *Worker) DisconnectHandler() {
 			if open {
 				worker.log.Debug("Player disconnected")
 				if gameClient != nil {
-					worker.Clients.Delete(gameClient.Name)
+					worker.Clients.Delete(gameClient.uuid)
 					_ = gameClient.Close()
 					worker.ClientCount--
 				}
@@ -132,21 +147,15 @@ func (worker *Worker) RunGame() {
 	}
 	worker.State = Started
 	worker.log.Debug("Starting Game")
-	err := worker.preparePosts()
-	if err != nil {
-		worker.log.WithError(err).Error("Failed to prepare posts. Game won't start!")
-		worker.State = Done
-		return
-	}
 
 	// run Worker.RoundsTotal rounds
 	for i := 0; i < worker.RoundsTotal; i++ {
 		worker.runRound(i)
 		msg := messages.NewScoreMessage()
-		worker.Clients.Range(func(key, value interface{}) bool {
-			name := key.(string)
+		worker.Clients.Range(func(_, value interface{}) bool {
 			client := value.(*Client)
-			msg.Payload.Scores[name] = client.Score
+			score, _ := worker.Score.Load(client.uuid.String())
+			msg.Payload.Scores[client.Name] = score.(int)
 			return true
 		})
 		msgJson, err := json.Marshal(msg)
@@ -157,13 +166,88 @@ func (worker *Worker) RunGame() {
 		}
 		worker.Clients.Range(func(_, value interface{}) bool {
 			client := value.(*Client)
-			client.Send <- msgJson
+			if !client.Terminated {
+				client.Send <- msgJson
+			}
 			return true
 		})
 		time.Sleep(2 * time.Second)
 	}
 	//set State to Done so that the clean up routine of GameMaster can handle the termination of the worker and clients
 	worker.State = Done
+}
+
+// StillNeeded checks for different conditions to decide if this worker is still needed
+func (worker *Worker) StillNeeded() bool {
+	// All rounds are played, game is done
+	if worker.State == Done {
+		worker.log.Debug("Game is done")
+		return false
+	}
+
+	// Lobby been open for EmptyLobbyTimeout minutes without anyone joining
+	if worker.State == Open && worker.ClientCount == 0 && worker.LobbyOpened.Add(EmptyLobbyTimeout).Before(time.Now()) {
+		worker.log.Debug("Lobby been empty for too long")
+		return false
+	}
+
+	// Lobby been open for LobbyNotStartedTimeout without starting the game
+	if worker.State == Open && worker.LobbyOpened.Add(LobbyNotStartedTimeout).Before(time.Now()) {
+		worker.log.Debug("Lobby been open for too long")
+		return false
+	}
+
+	// Worker got created but game didn't start within the duration InactiveNotStartedTimeout
+	if worker.State == Created && worker.Created.Add(InactiveNotStartedTimeout).Before(time.Now()) {
+		worker.log.Debug("Game never started")
+		return false
+	}
+
+	// All clients left during the game
+	if worker.State == Started && worker.ClientCount == 0 {
+		worker.log.Debug("Game abandoned")
+		return false
+	}
+
+	return true
+}
+
+//handleClientAnswer handles the incoming answer of a single client, updates the score if necessary, notifies the client
+func (worker *Worker) handleClientAnswer(playerClient *Client, correctAnswer string, wg *sync.WaitGroup) {
+	defer wg.Done()
+	//receive answer from client
+	answerJson, ok := <-playerClient.Message
+	if !ok {
+		return
+	}
+	playerClient.Blocked = true
+	var answerMessage messages.Answer
+	err := answerMessage.Parse(answerJson)
+	if err != nil {
+		worker.log.WithError(err).Error("Unable to parse answer message")
+		return
+	}
+	answer := answerMessage.Payload.Answer
+	worker.log.WithField("Client", playerClient.Name).WithField("Answer", answer).Trace("Client answered")
+
+	msg := messages.NewAnswerCorrectnessMessage()
+	msg.Payload.Correct = strings.Compare(string(answer), correctAnswer) == 0
+	msg.Payload.CorrectAnswer = correctAnswer
+	if msg.Payload.Correct {
+		currentScore, _ := worker.Score.Load(playerClient.uuid.String())
+		worker.Score.Store(playerClient.uuid.String(), 1+currentScore.(int))
+	}
+
+	//notify client if correct or not
+	msgJson, err := json.Marshal(msg)
+	if err != nil {
+		worker.log.WithError(err).
+			Error("Unable to marshal answer correctness message to json")
+		return
+	}
+	if !playerClient.Terminated {
+		playerClient.Send <- msgJson
+	}
 }
 
 //preparePosts collects subreddits and posts for those subreddits, shuffles them around and adds them to the worker
@@ -225,6 +309,9 @@ func (worker *Worker) runRound(round int) {
 
 	worker.Clients.Range(func(_, value interface{}) bool {
 		client := value.(*Client)
+		if client.Terminated {
+			return false
+		}
 		//flush messages still in channel before starting next round
 		for i := 0; i < len(client.Message); i++ {
 			worker.log.Trace(<-client.Message)
@@ -238,73 +325,21 @@ func (worker *Worker) runRound(round int) {
 	wg.Wait()
 }
 
-// StillNeeded checks for different conditions to decide if this worker is still needed
-func (worker *Worker) StillNeeded() bool {
-	// All rounds are played, game is done
-	if worker.State == Done {
-		worker.log.Debug("Game is done")
-		return false
-	}
-
-	// Lobby been open for EmptyLobbyTimeout minutes without anyone joining
-	if worker.State == Open && worker.ClientCount == 0 && worker.LobbyOpened.Add(EmptyLobbyTimeout).Before(time.Now()) {
-		worker.log.Debug("Lobby been empty for too long")
-		return false
-	}
-
-	// Lobby been open for LobbyNotStartedTimeout without starting the game
-	if worker.State == Open && worker.LobbyOpened.Add(LobbyNotStartedTimeout).Before(time.Now()) {
-		worker.log.Debug("Lobby been open for too long")
-		return false
-	}
-
-	// Worker got created but game didn't start within the duration InactiveNotStartedTimeout
-	if worker.State == Created && worker.Created.Add(InactiveNotStartedTimeout).Before(time.Now()) {
-		worker.log.Debug("Game never started")
-		return false
-	}
-
-	// All clients left during the game
-	if worker.State == Started && worker.ClientCount == 0 {
-		worker.log.Debug("Game abandoned")
-		return false
-	}
-
-	return true
-}
-
-//handleClientAnswer handles the incoming answer of a single client, updates the score if necessary, notifies the client
-func (worker *Worker) handleClientAnswer(playerClient *Client, correctAnswer string, wg *sync.WaitGroup) {
-	defer wg.Done()
-	//receive answer from client
-	answerJson, ok := <-playerClient.Message
-	if !ok {
-		return
-	}
-	playerClient.Blocked = true
-	var answerMessage messages.Answer
-	err := answerMessage.Parse(answerJson)
+func (worker *Worker) join(w http.ResponseWriter, r *http.Request, playerName string, playerUUID uuid.UUID) (*Client, error) {
+	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
-		worker.log.WithError(err).Error("Unable to parse answer message")
-		return
+		worker.log.Error("Unable to rejoin player")
 	}
-	answer := answerMessage.Payload.Answer
-	worker.log.WithField("Client", playerClient.Name).WithField("Answer", answer).Trace("Client answered")
-
-	msg := messages.NewAnswerCorrectnessMessage()
-	msg.Payload.Correct = strings.Compare(string(answer), correctAnswer) == 0
-	msg.Payload.CorrectAnswer = correctAnswer
-	if msg.Payload.Correct {
-		playerClient.Score++
+	gameClient := NewClient(conn, playerName, playerUUID, worker)
+	worker.ClientCount++
+	worker.log.WithField("Name", gameClient.Name).Debug("Player joined")
+	worker.Clients.Store(gameClient.uuid.String(), gameClient)
+	if len(worker.Posts) == 0 {
+		err := worker.preparePosts()
+		if err != nil {
+			worker.State = Done
+			return nil, errors.Wrap(err, "Failed to prepare posts. Game won't start!")
+		}
 	}
-
-	//notify client if correct or not
-	msgJson, err := json.Marshal(msg)
-	if err != nil {
-		worker.log.WithError(err).
-			Error("Unable to marshal answer correctness message to json")
-		return
-	}
-	playerClient.Send <- msgJson
-
+	return gameClient, nil
 }

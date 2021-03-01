@@ -2,6 +2,7 @@ package gameLogic
 
 import (
 	"bytes"
+	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 	"github.com/sirupsen/logrus"
 	"time"
@@ -27,27 +28,37 @@ var (
 )
 
 type Client struct {
-	conn    *websocket.Conn
-	Name    string
-	Score   int
-	Worker  *Worker
-	Send    chan []byte
-	Message chan []byte
-	Blocked bool
-	close   chan bool
-	log     *logrus.Entry
+	conn       *websocket.Conn
+	uuid       uuid.UUID
+	Name       string
+	Worker     *Worker
+	Send       chan []byte
+	Message    chan []byte
+	Blocked    bool
+	close      chan bool
+	log        *logrus.Entry
+	Terminated bool
 }
 
-func NewClient(conn *websocket.Conn, name string, gameWorker *Worker) {
-	client := &Client{conn: conn, Name: name, Worker: gameWorker, Send: make(chan []byte, 256), Message: make(chan []byte), close: make(chan bool)}
+func NewClient(conn *websocket.Conn, name string, uuid uuid.UUID, gameWorker *Worker) *Client {
+	client := &Client{
+		conn:    conn,
+		Name:    name,
+		uuid:    uuid,
+		Worker:  gameWorker,
+		Send:    make(chan []byte, 256),
+		Message: make(chan []byte),
+		close:   make(chan bool),
+	}
 	client.log = logrus.WithField("Client", client.Name).WithField("Worker", gameWorker.Id.String())
-	gameWorker.Register <- client
 	go client.readPump()
 	go client.writePump()
+	return client
 }
 
 func (c *Client) Close() error {
 	c.log.Debug("Terminating client because Close() got called")
+	c.Terminated = true
 	c.close <- true
 	close(c.Send)
 	close(c.Message)

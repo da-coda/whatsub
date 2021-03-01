@@ -27,7 +27,10 @@ func main() {
 	gm := gameLogic.NewGameMaster()
 	router := mux.NewRouter()
 	router.HandleFunc("/game/create", CreateGameHandler(gm))
-	router.HandleFunc("/game/{uuid_or_key}/join", gm.JoinGame).Queries("name", "{name}")
+	//join
+	router.HandleFunc("/game/{uuid_or_key}/join", gm.JoinGame).Queries("name", "{name}", "uuid", "{uuid}")
+	//rejoin
+	router.HandleFunc("/game/{uuid_or_key}/join", gm.JoinGame).Queries("uuid", "{uuid}")
 	router.HandleFunc("/game/{uuid}/start", gm.StartGame)
 	router.PathPrefix("/").HandlerFunc(ServeWebpage).Methods("GET")
 	srv := &http.Server{
