@@ -10,7 +10,8 @@ const routes = [
   {
     path: '/game/join/:code',
     name: 'NewGame',
-    component: () => import(/* webpackChunkName: "about" */ '../views/GameLobby.vue')
+    props: true,
+    component: () => import(/* webpackChunkName: "GameLobby" */ '../views/GameLobby.vue')
   }
 ]
 
