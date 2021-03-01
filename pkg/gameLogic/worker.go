@@ -18,8 +18,8 @@ import (
 )
 
 const InactiveNotStartedTimeout = 1 * time.Hour
-const EmptyLobbyTimeout = 10 * time.Minute
 const LobbyNotStartedTimeout = 30 * time.Minute
+const EmptyLobbyTimeout = 10 * time.Minute
 
 var upgrader = websocket.Upgrader{CheckOrigin: func(r *http.Request) bool {
 	return true
@@ -88,8 +88,8 @@ func (worker *Worker) Close() error {
 //OpenLobby checks if a new worker registers while the worker State is Open
 func (worker *Worker) Join(w http.ResponseWriter, r *http.Request) {
 	playerName := r.FormValue("name")
-	playerUUIDstring := r.FormValue("uuid")
-	playerUUID, err := uuid.Parse(playerUUIDstring)
+	playerUUIDString := r.FormValue("uuid")
+	playerUUID, err := uuid.Parse(playerUUIDString)
 	if err != nil {
 		worker.log.WithError(err).Error("invalid uuid")
 		w.WriteHeader(400)
@@ -97,7 +97,7 @@ func (worker *Worker) Join(w http.ResponseWriter, r *http.Request) {
 	}
 	switch worker.State {
 	case Started:
-		if _, exists := worker.Score.Load(playerUUIDstring); exists {
+		if _, exists := worker.Score.Load(playerUUIDString); exists {
 			client, err := worker.join(w, r, playerName, playerUUID)
 			if err != nil {
 				return
@@ -231,7 +231,7 @@ func (worker *Worker) handleClientAnswer(playerClient *Client, correctAnswer str
 	worker.log.WithField("Client", playerClient.Name).WithField("Answer", answer).Trace("Client answered")
 
 	msg := messages.NewAnswerCorrectnessMessage()
-	msg.Payload.Correct = strings.Compare(string(answer), correctAnswer) == 0
+	msg.Payload.Correct = strings.Compare(answer, correctAnswer) == 0
 	msg.Payload.CorrectAnswer = correctAnswer
 	if msg.Payload.Correct {
 		currentScore, _ := worker.Score.Load(playerClient.uuid.String())
