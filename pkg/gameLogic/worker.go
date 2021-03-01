@@ -7,16 +7,23 @@ import (
 	"github.com/da-coda/whatsub/pkg/redditHelper"
 	"github.com/da-coda/whatsub/pkg/utils"
 	"github.com/google/uuid"
+	"github.com/gorilla/websocket"
+	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	"math/rand"
+	"net/http"
 	"strings"
 	"sync"
 	"time"
 )
 
 const InactiveNotStartedTimeout = 1 * time.Hour
-const EmptyLobbyTimeout = 10 * time.Minute
 const LobbyNotStartedTimeout = 30 * time.Minute
+const EmptyLobbyTimeout = 10 * time.Minute
+
+var upgrader = websocket.Upgrader{CheckOrigin: func(r *http.Request) bool {
+	return true
+}}
 
 type State int
 
@@ -30,20 +37,22 @@ const (
 
 //Worker handles a single game, holds all participating clients and needed resources for the game
 type Worker struct {
-	Id          uuid.UUID
-	ShortId     string
-	Clients     sync.Map
-	Posts       []types.Post
-	Subreddits  []string
-	Host        string
-	RoundsTotal int
-	Created     time.Time
-	LobbyOpened time.Time
-	Register    chan *Client
-	Unregister  chan *Client
-	State       State
-	ClientCount uint64
-	log         *logrus.Entry
+	Id            uuid.UUID
+	ShortId       string
+	Clients       sync.Map
+	Posts         []types.Post
+	Score         sync.Map
+	Subreddits    []string
+	Host          string
+	CreatorIpHash string
+	RoundsTotal   int
+	Created       time.Time
+	LobbyOpened   time.Time
+	Register      chan *Client
+	Unregister    chan *Client
+	State         State
+	ClientCount   uint64
+	log           *logrus.Entry
 }
 
 //NewWorker creates a new Worker and setups channels
@@ -77,28 +86,36 @@ func (worker *Worker) Close() error {
 }
 
 //OpenLobby checks if a new worker registers while the worker State is Open
-func (worker *Worker) OpenLobby() {
-	worker.LobbyOpened = time.Now()
-	worker.log.Debug("Open Lobby")
-	worker.State = Open
-	go worker.DisconnectHandler()
-	//create a ticker and use it in our loop that checks for new registers so that at least every second the loop condition
-	//is checked even without register event so that the lobby can be closed correctly
-	ticker := time.NewTicker(1 * time.Second)
-	defer ticker.Stop()
-	for worker.State == Open {
-		select {
-		case gameClient, open := <-worker.Register:
-			if open {
-				worker.ClientCount++
-				worker.log.WithField("Name", gameClient.Name).Debug("Player joined")
-				worker.Clients.Store(gameClient.Name, gameClient)
-			}
-		case <-ticker.C:
-			continue
-		}
+func (worker *Worker) Join(w http.ResponseWriter, r *http.Request) {
+	playerName := r.FormValue("name")
+	playerUUIDString := r.FormValue("uuid")
+	playerUUID, err := uuid.Parse(playerUUIDString)
+	if err != nil {
+		worker.log.WithError(err).Error("invalid uuid")
+		w.WriteHeader(400)
+		return
 	}
-	worker.log.Debug("Closing Lobby")
+	switch worker.State {
+	case Started:
+		if _, exists := worker.Score.Load(playerUUIDString); exists {
+			client, err := worker.join(w, r, playerName, playerUUID)
+			if err != nil {
+				return
+			}
+			client.Send <- []byte("Welcome back")
+			return
+		}
+		w.WriteHeader(400)
+		return
+	case Open:
+		client, err := worker.join(w, r, playerName, playerUUID)
+		if err != nil {
+			return
+		}
+		worker.Score.Store(client.uuid.String(), 0)
+	default:
+		w.WriteHeader(400)
+	}
 }
 
 //DisconnectHandler listens on the Unregister channel and removes clients that unregistered themselves
@@ -112,7 +129,7 @@ func (worker *Worker) DisconnectHandler() {
 			if open {
 				worker.log.Debug("Player disconnected")
 				if gameClient != nil {
-					worker.Clients.Delete(gameClient.Name)
+					worker.Clients.Delete(gameClient.uuid)
 					_ = gameClient.Close()
 					worker.ClientCount--
 				}
@@ -130,16 +147,15 @@ func (worker *Worker) RunGame() {
 	}
 	worker.State = Started
 	worker.log.Debug("Starting Game")
-	worker.preparePosts()
 
 	// run Worker.RoundsTotal rounds
 	for i := 0; i < worker.RoundsTotal; i++ {
 		worker.runRound(i)
 		msg := messages.NewScoreMessage()
-		worker.Clients.Range(func(key, value interface{}) bool {
-			name := key.(string)
+		worker.Clients.Range(func(_, value interface{}) bool {
 			client := value.(*Client)
-			msg.Payload.Scores[name] = client.Score
+			score, _ := worker.Score.Load(client.uuid.String())
+			msg.Payload.Scores[client.Name] = score.(int)
 			return true
 		})
 		msgJson, err := json.Marshal(msg)
@@ -150,82 +166,15 @@ func (worker *Worker) RunGame() {
 		}
 		worker.Clients.Range(func(_, value interface{}) bool {
 			client := value.(*Client)
-			client.Send <- msgJson
+			if !client.Terminated {
+				client.Send <- msgJson
+			}
 			return true
 		})
 		time.Sleep(2 * time.Second)
 	}
 	//set State to Done so that the clean up routine of GameMaster can handle the termination of the worker and clients
 	worker.State = Done
-}
-
-//preparePosts collects subreddits and posts for those subreddits, shuffles them around and adds them to the worker
-func (worker *Worker) preparePosts() {
-	worker.log.Debug("Preparing Posts")
-	//collect subreddits and posts
-	subreddits := redditHelper.GetTopSubreddits()
-	links, err := redditHelper.GetTopPostsForSubreddits(subreddits, 5)
-	if err != nil {
-		worker.log.WithError(err).Error("Unable to prepare posts")
-	}
-	//merge all posts from all subreddits into a single slice
-	var posts []types.Post
-	for _, link := range links {
-		for _, linkPost := range link.GetContent() {
-			if linkPost.GetType() != types.LinkPost && linkPost.GetType() != types.VideoPost {
-				posts = append(posts, linkPost)
-			}
-		}
-	}
-	//shuffle slice randomly and add them to the worker
-	rand.Seed(time.Now().UnixNano())
-	rand.Shuffle(len(posts), func(i, j int) { posts[i], posts[j] = posts[j], posts[i] })
-	worker.Posts = posts
-	worker.Subreddits = subreddits
-}
-
-//runRound handles a single round by parsing a post into the RoundMessage struct, sending it to all clients and spawning a handler for incoming answers
-func (worker *Worker) runRound(round int) {
-	worker.log.WithField("Round", round).Info("Starting Round")
-	var wg sync.WaitGroup
-
-	//get the post for this round
-	post := worker.Posts[round]
-	//if post is an html post use the HtmlContent, otherwise just the Content
-	postText := post.Data.HtmlContent
-	if postText == "" {
-		postText = post.Data.Content
-	}
-
-	//Parse the post into our RoundMessage format and marshal it to json
-	roundMessage := messages.NewRoundMessage()
-	roundMessage.Payload.Number = round
-	roundMessage.Payload.From = worker.RoundsTotal
-	roundMessage.Payload.Post.Title = post.Data.Title
-	roundMessage.Payload.Post.Content = postText
-	roundMessage.Payload.Post.Type = post.GetType()
-	roundMessage.Payload.Post.Url = post.Data.Url
-	roundMessage.Payload.Subreddits = worker.Subreddits
-	roundJson, err := json.Marshal(roundMessage)
-	if err != nil {
-		worker.log.WithError(err).
-			Error("Unable to marshal round message to json")
-		return
-	}
-
-	worker.Clients.Range(func(_, value interface{}) bool {
-		client := value.(*Client)
-		//flush messages still in channel before starting next round
-		for i := 0; i < len(client.Message); i++ {
-			worker.log.Trace(<-client.Message)
-		}
-		client.Send <- roundJson
-		client.Blocked = false
-		wg.Add(1)
-		go worker.handleClientAnswer(client, post.Data.Subreddit, &wg)
-		return true
-	})
-	wg.Wait()
 }
 
 // StillNeeded checks for different conditions to decide if this worker is still needed
@@ -282,10 +231,11 @@ func (worker *Worker) handleClientAnswer(playerClient *Client, correctAnswer str
 	worker.log.WithField("Client", playerClient.Name).WithField("Answer", answer).Trace("Client answered")
 
 	msg := messages.NewAnswerCorrectnessMessage()
-	msg.Payload.Correct = strings.Compare(string(answer), correctAnswer) == 0
+	msg.Payload.Correct = strings.Compare(answer, correctAnswer) == 0
 	msg.Payload.CorrectAnswer = correctAnswer
 	if msg.Payload.Correct {
-		playerClient.Score++
+		currentScore, _ := worker.Score.Load(playerClient.uuid.String())
+		worker.Score.Store(playerClient.uuid.String(), 1+currentScore.(int))
 	}
 
 	//notify client if correct or not
@@ -295,6 +245,101 @@ func (worker *Worker) handleClientAnswer(playerClient *Client, correctAnswer str
 			Error("Unable to marshal answer correctness message to json")
 		return
 	}
-	playerClient.Send <- msgJson
+	if !playerClient.Terminated {
+		playerClient.Send <- msgJson
+	}
+}
 
+//preparePosts collects subreddits and posts for those subreddits, shuffles them around and adds them to the worker
+func (worker *Worker) preparePosts() error {
+	worker.log.Debug("Preparing Posts")
+	//collect subreddits and posts
+	subreddits, err := redditHelper.GetTopSubreddits(10)
+	if err != nil {
+		return errors.Wrap(err, "Failed to prepare posts")
+	}
+	links, err := redditHelper.GetTopPostsForSubreddits(subreddits.GetSubPaths(), 5)
+	if err != nil {
+		return errors.Wrap(err, "Failed to prepare posts")
+	}
+	//merge all posts from all subreddits into a single slice
+	var posts []types.Post
+	for _, link := range links {
+		for _, linkPost := range link.GetContent() {
+			if linkPost.GetType() != types.LinkPost && linkPost.GetType() != types.VideoPost {
+				posts = append(posts, linkPost)
+			}
+		}
+	}
+	//shuffle slice randomly and add them to the worker
+	rand.Shuffle(len(posts), func(i, j int) { posts[i], posts[j] = posts[j], posts[i] })
+	worker.Posts = posts
+	worker.Subreddits = subreddits.GetSubPaths()
+	return nil
+}
+
+//runRound handles a single round by parsing a post into the RoundMessage struct, sending it to all clients and spawning a handler for incoming answers
+func (worker *Worker) runRound(round int) {
+	worker.log.WithField("Round", round).Info("Starting Round")
+	var wg sync.WaitGroup
+
+	//get the post for this round
+	post := worker.Posts[round]
+	//if post is an html post use the HtmlContent, otherwise just the Content
+	postText := post.Data.HtmlContent
+	if postText == "" {
+		postText = post.Data.Content
+	}
+
+	//Parse the post into our RoundMessage format and marshal it to json
+	roundMessage := messages.NewRoundMessage()
+	roundMessage.Payload.Number = round
+	roundMessage.Payload.From = worker.RoundsTotal
+	roundMessage.Payload.Post.Title = post.Data.Title
+	roundMessage.Payload.Post.Content = postText
+	roundMessage.Payload.Post.Type = post.GetType()
+	roundMessage.Payload.Post.Url = post.Data.Url
+	roundMessage.Payload.Subreddits = worker.Subreddits
+	roundJson, err := json.Marshal(roundMessage)
+	if err != nil {
+		worker.log.WithError(err).
+			Error("Unable to marshal round message to json")
+		return
+	}
+
+	worker.Clients.Range(func(_, value interface{}) bool {
+		client := value.(*Client)
+		if client.Terminated {
+			return false
+		}
+		//flush messages still in channel before starting next round
+		for i := 0; i < len(client.Message); i++ {
+			worker.log.Trace(<-client.Message)
+		}
+		client.Send <- roundJson
+		client.Blocked = false
+		wg.Add(1)
+		go worker.handleClientAnswer(client, post.Data.Subreddit, &wg)
+		return true
+	})
+	wg.Wait()
+}
+
+func (worker *Worker) join(w http.ResponseWriter, r *http.Request, playerName string, playerUUID uuid.UUID) (*Client, error) {
+	conn, err := upgrader.Upgrade(w, r, nil)
+	if err != nil {
+		worker.log.Error("Unable to rejoin player")
+	}
+	gameClient := NewClient(conn, playerName, playerUUID, worker)
+	worker.ClientCount++
+	worker.log.WithField("Name", gameClient.Name).Debug("Player joined")
+	worker.Clients.Store(gameClient.uuid.String(), gameClient)
+	if len(worker.Posts) == 0 {
+		err := worker.preparePosts()
+		if err != nil {
+			worker.State = Done
+			return nil, errors.Wrap(err, "Failed to prepare posts. Game won't start!")
+		}
+	}
+	return gameClient, nil
 }

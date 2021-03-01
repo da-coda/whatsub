@@ -1,0 +1,22 @@
+version: '3.7'
+
+services:
+  postgres:
+    build:
+      context: .
+      dockerfile: Docker/postgresql/Dockerfile
+    ports:
+      - 5432:5432
+    networks:
+      - whatsub
+  whatsub:
+    build:
+      dockerfile: Dockerfile
+      context: .
+    ports:
+      - 8000:8000
+    networks:
+      - whatsub
+
+networks:
+  whatsub:

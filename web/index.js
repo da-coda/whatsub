@@ -41,7 +41,8 @@ function joinGame() {
     if (useUuidField) {
         uuid = document.getElementById("joinUuid").value
     }
-    var url = new URL("/game/" + uuid + "/join?name=" + name, window.location.href);
+    let playerUuid = uuidv4()
+    var url = new URL("/game/" + uuid + "/join?name=" + name + "&uuid=e603cadb-6dde-4072-a468-9deaf66e8fc6", window.location.href);
     url.protocol = url.protocol.replace('http', 'ws');
     url.protocol = url.protocol.replace('https', 'wss');
     conn = new WebSocket(url.href)
@@ -126,4 +127,10 @@ function copyJoinUrl() {
     }, function(err) {
         console.error('Async: Could not copy text: ', err);
     });
+}
+
+function uuidv4() {
+    return ([1e7]+-1e3+-4e3+-8e3+-1e11).replace(/[018]/g, c =>
+        (c ^ crypto.getRandomValues(new Uint8Array(1))[0] & 15 >> c / 4).toString(16)
+    );
 }
