@@ -31,10 +31,13 @@
   </el-container>
 </template>
 <script>
-
+import { createGame, joinGame } from '@/lib/whatsub'
 export default {
   name: 'StartScreen',
   components: {},
+  setup (props) {
+    console.log('gna gna')
+  },
   methods: {
     enterGameCode () {
       this.$prompt('Please enter the game code:', 'Join Game', {
@@ -53,13 +56,25 @@ export default {
       }
       )
     },
-    async openNewGame () {
-      await this.$http.get('/game/create').then((response) => {
-        // TODO Error handling
-        this.$store.commit('setGameId', response.data.Payload.UUID)
-        this.$store.commit('setGameHead', true)
-        this.$router.push('/game/join/' + response.data.Payload.Key)
+    openNewGame () {
+      const username = this.$prompt('Please enter your username', 'Username', {
+        confirmButtonText: 'OK',
+        cancelButtonText: 'Cancel'
       })
+      const game = createGame()
+      Promise.all([username, game])
+        .then(([username, game]) => {
+          return new Promise((resolve) => {
+            const connection = joinGame(username.value, game.key)
+            resolve(game, connection)
+          })
+        })
+        .then((game, connection) => {
+          this.$store.commit('setGameId', game.uuid)
+          this.$store.commit('setGameHead', true)
+          this.$store.commit('setWebsocketConnection', connection)
+          this.$router.push('/game/join/' + game.key)
+        })
     }
   }
 }
