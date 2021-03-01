@@ -3,12 +3,8 @@ import { createStore } from 'vuex'
 export default createStore({
   state: {
     gameId: null,
-    isGameHead: false
-  },
-  getters: {
-    isGameHead: state => {
-      return state.isGameHead
-    }
+    isGameHead: false,
+    websocketConnection: null
   },
   mutations: {
     /**
@@ -38,6 +34,14 @@ export default createStore({
      */
     setGameHead (state, isHead) {
       state.isGameHead = isHead
+    },
+    /**
+     * Save WebSocketConnection
+     * @param state
+     * @param websocketConnection
+     */
+    setWebsocketConnection (state, websocketConnection) {
+      state.websocketConnection = websocketConnection
     }
   },
   actions: {
