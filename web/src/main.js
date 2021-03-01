@@ -3,8 +3,6 @@ import App from './App.vue'
 import { ElButton, ElContainer, ElHeader, ElMain, ElFooter, ElRow, ElCol, ElMessageBox } from 'element-plus'
 import router from './router'
 import store from './store'
-import axios from 'axios'
-import VueAxios from 'vue-axios'
 
 // Subscribe to store updates
 store.subscribe((mutation, state) => {
@@ -17,7 +15,7 @@ const app = createApp(App)
 
 app.use(store)
 app.use(router)
-app.use(VueAxios, axios)
+app.use(whatsub)
 
 app.use(ElButton)
   .use(ElContainer)
