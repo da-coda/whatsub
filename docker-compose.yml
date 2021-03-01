@@ -5,18 +5,37 @@ services:
     build:
       context: .
       dockerfile: Docker/postgresql/Dockerfile
-    ports:
-      - 5432:5432
-    networks:
-      - whatsub
+    network_mode: "host"
+
   whatsub:
     build:
       dockerfile: Dockerfile
       context: .
-    ports:
-      - 8000:8000
-    networks:
-      - whatsub
+    network_mode: "host"
 
-networks:
-  whatsub:
+  nginx:
+    image: nginx:stable-alpine
+    volumes:
+    - ./conf/nginx/dev:/etc/nginx/conf.d:ro
+    network_mode: "host"
+
+  frontend-install:
+    image: node:15-alpine
+    user: "${UID}:${GID}"
+    working_dir: /app
+    command: "yarn"
+    volumes:
+      - ./web:/app
+    network_mode: "host"
+
+  frontend:
+    image: node:15-alpine
+    depends_on:
+      - frontend-install
+    user: "${UID}:${GID}"
+    working_dir: /app
+    command: "yarn run serve"
+    volumes:
+    - ./web:/app
+    network_mode: "host"
+
