@@ -11,6 +11,8 @@ services:
     build:
       dockerfile: Dockerfile
       context: .
+    depends_on:
+      - postgres
     network_mode: "host"
     profiles:
       - backend
