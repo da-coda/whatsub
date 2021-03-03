@@ -3,10 +3,10 @@ let uuid = ""
 let useUuidField = false
 let joinUrl = ""
 
-window.onload = function(){
+window.onload = function () {
     var pathArray = window.location.pathname.split('/');
     console.log(pathArray)
-    if(pathArray[1] === "joinMe") {
+    if (pathArray[1] === "joinMe") {
         uuid = pathArray[2]
         document.getElementById("start").style.display = "none"
         document.getElementById("join").style.display = "block"
@@ -61,7 +61,7 @@ function joinGame() {
 
                 document.getElementById("postTitle").innerText = msg.Payload.Post.Title
                 document.getElementById("postContent").innerHTML = htmlDecode(msg.Payload.Post.Content)
-                if(msg.Payload.Post.Type === "Image"){
+                if (msg.Payload.Post.Type === "Image") {
                     document.getElementById("postImage").src = msg.Payload.Post.Url
                 }
                 let subreddits = msg.Payload.Subreddits
@@ -73,15 +73,26 @@ function joinGame() {
                 break;
             case "score":
                 document.getElementById("scoreList").innerHTML = ""
-                console.log(msg.Payload.Scores)
                 for (const [key, value] of Object.entries(msg.Payload.Scores)) {
-                    document.getElementById("scoreList").innerHTML +=  `<a href="#" class="list-group-item list-group-item-action bg-light"> ${key}: ${value} </a>`
+                    document.getElementById("scoreList").innerHTML += `<a href="#" class="list-group-item list-group-item-action bg-light"> ${key}: ${value} </a>`
                 }
 
                 break
 
             case "answer_correct":
                 document.getElementById(msg.Payload.CorrectAnswer).style.backgroundColor = "green"
+                break
+            case "finished":
+                document.getElementById("finish").style.display = "block"
+                document.getElementById("round").style.display = "none"
+                let scores = []
+                for (const [key, value] of Object.entries(msg.Payload.Scores)) {
+                    scores.push({name: key, score: value})
+                }
+                scores.sort((a, b) => (a.score > b.score) ? -1 : 1)
+                for (const score of scores) {
+                    document.getElementById("finish").innerHTML += `<a href="#" class="list-group-item list-group-item-action bg-light"> ${score.name}: ${score.score} </a>`
+                }
                 break
             default:
                 console.log(event.data)
@@ -122,15 +133,15 @@ function htmlDecode(input) {
 }
 
 function copyJoinUrl() {
-    navigator.clipboard.writeText(joinUrl).then(function() {
+    navigator.clipboard.writeText(joinUrl).then(function () {
         console.log('Async: Copying to clipboard was successful!');
-    }, function(err) {
+    }, function (err) {
         console.error('Async: Could not copy text: ', err);
     });
 }
 
 function uuidv4() {
-    return ([1e7]+-1e3+-4e3+-8e3+-1e11).replace(/[018]/g, c =>
+    return ([1e7] + -1e3 + -4e3 + -8e3 + -1e11).replace(/[018]/g, c =>
         (c ^ crypto.getRandomValues(new Uint8Array(1))[0] & 15 >> c / 4).toString(16)
     );
 }

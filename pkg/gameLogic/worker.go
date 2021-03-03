@@ -139,6 +139,27 @@ func (worker *Worker) RunGame() {
 		worker.sendScoreMessage()
 		time.Sleep(2 * time.Second)
 	}
+
+	msg := messages.NewFinishedMessage()
+	worker.Clients.Range(func(_, value interface{}) bool {
+		client := value.(*Client)
+		score, _ := worker.Score.Load(client.uuid.String())
+		msg.Payload.Scores[client.Name] = score.(int)
+		return true
+	})
+	msgJson, err := json.Marshal(msg)
+	if err != nil {
+		worker.log.WithError(err).
+			Error("Unable to marshal score message to json")
+		return
+	}
+	worker.Clients.Range(func(_, value interface{}) bool {
+		client := value.(*Client)
+		if !client.Terminated {
+			client.Send <- msgJson
+		}
+		return true
+	})
 	//set State to Done so that the clean up routine of GameMaster can handle the termination of the worker and clients
 	worker.State = Done
 }
