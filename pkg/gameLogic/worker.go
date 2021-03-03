@@ -98,19 +98,21 @@ func (worker *Worker) Join(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 			client.Send <- []byte("Welcome back")
-			return
+			break
 		}
 		w.WriteHeader(400)
 		return
 	case Open:
 		client, err := worker.join(w, r, playerName, playerUUID)
 		if err != nil {
+			worker.log.WithError(err).Error("Dafuq")
 			return
 		}
 		worker.Score.Store(client.uuid.String(), 0)
 	default:
 		w.WriteHeader(400)
 	}
+	worker.sendScoreMessage()
 }
 
 func (worker *Worker) Disconnect(gameClient *Client) {
@@ -134,26 +136,7 @@ func (worker *Worker) RunGame() {
 	// run Worker.RoundsTotal rounds
 	for i := 0; i < worker.RoundsTotal; i++ {
 		worker.runRound(i)
-		msg := messages.NewScoreMessage()
-		worker.Clients.Range(func(_, value interface{}) bool {
-			client := value.(*Client)
-			score, _ := worker.Score.Load(client.uuid.String())
-			msg.Payload.Scores[client.Name] = score.(int)
-			return true
-		})
-		msgJson, err := json.Marshal(msg)
-		if err != nil {
-			worker.log.WithError(err).
-				Error("Unable to marshal score message to json")
-			continue
-		}
-		worker.Clients.Range(func(_, value interface{}) bool {
-			client := value.(*Client)
-			if !client.Terminated {
-				client.Send <- msgJson
-			}
-			return true
-		})
+		worker.sendScoreMessage()
 		time.Sleep(2 * time.Second)
 	}
 	//set State to Done so that the clean up routine of GameMaster can handle the termination of the worker and clients
@@ -343,4 +326,27 @@ func (worker *Worker) join(w http.ResponseWriter, r *http.Request, playerName st
 		}
 	}
 	return gameClient, nil
+}
+
+func (worker *Worker) sendScoreMessage() {
+	msg := messages.NewScoreMessage()
+	worker.Clients.Range(func(_, value interface{}) bool {
+		client := value.(*Client)
+		score, _ := worker.Score.Load(client.uuid.String())
+		msg.Payload.Scores[client.Name] = score.(int)
+		return true
+	})
+	msgJson, err := json.Marshal(msg)
+	if err != nil {
+		worker.log.WithError(err).
+			Error("Unable to marshal score message to json")
+		return
+	}
+	worker.Clients.Range(func(_, value interface{}) bool {
+		client := value.(*Client)
+		if !client.Terminated {
+			client.Send <- msgJson
+		}
+		return true
+	})
 }
