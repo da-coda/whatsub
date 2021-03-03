@@ -36,6 +36,24 @@ export default {
       return window.location.protocol + '//' + window.location.host + this.$route.path
     }
   },
+  mounted () {
+    this.$store.state.websocketConnection.onmessage = function (event) {
+      const msg = JSON.parse(event.data)
+      console.log(event.data)
+      switch (msg.Type) {
+        case 'join': {
+          // TODO: display joined user
+          break
+        }
+        case 'left': {
+          // TODO: display joined user
+          break
+        }
+        default:
+          console.log(event.data)
+      }
+    }
+  },
   methods: {}
 }
 </script>

@@ -11,7 +11,11 @@ services:
     build:
       dockerfile: Dockerfile
       context: .
+    depends_on:
+      - postgres
     network_mode: "host"
+    profiles:
+      - backend
 
   nginx:
     image: nginx:stable-alpine
@@ -27,6 +31,8 @@ services:
     volumes:
       - ./web:/app
     network_mode: "host"
+    profiles:
+      - frontend
 
   frontend:
     image: node:15-alpine
@@ -38,4 +44,6 @@ services:
     volumes:
     - ./web:/app
     network_mode: "host"
+    profiles:
+      - frontend
 

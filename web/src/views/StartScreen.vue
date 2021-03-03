@@ -66,10 +66,10 @@ export default {
         .then(([username, game]) => {
           return new Promise((resolve) => {
             const connection = joinGame(username.value, game.key)
-            resolve(game, connection)
+            resolve([game, connection])
           })
         })
-        .then((game, connection) => {
+        .then(([game, connection]) => {
           this.$store.commit('setGameId', game.uuid)
           this.$store.commit('setGameHead', true)
           this.$store.commit('setWebsocketConnection', connection)
