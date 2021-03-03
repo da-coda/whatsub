@@ -48,8 +48,6 @@ type Worker struct {
 	RoundsTotal   int
 	Created       time.Time
 	LobbyOpened   time.Time
-	Register      chan *Client
-	Unregister    chan *Client
 	State         State
 	ClientCount   uint64
 	log           *logrus.Entry
@@ -63,8 +61,6 @@ func NewWorker() *Worker {
 		RoundsTotal: 10,
 		Created:     time.Now(),
 		State:       Created,
-		Register:    make(chan *Client, 256),
-		Unregister:  make(chan *Client, 256),
 		Clients:     sync.Map{},
 		ClientCount: 0,
 	}
@@ -78,10 +74,9 @@ func (worker *Worker) Close() error {
 	worker.log.Debug("Terminating worker because Close() got called")
 	worker.Clients.Range(func(_, value interface{}) bool {
 		client := value.(*Client)
-		worker.Unregister <- client
+		worker.Disconnect(client)
 		return true
 	})
-	close(worker.Register)
 	return nil
 }
 
@@ -118,32 +113,20 @@ func (worker *Worker) Join(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-//DisconnectHandler listens on the Unregister channel and removes clients that unregistered themselves
-func (worker *Worker) DisconnectHandler() {
-	//use ticker so that every second the loop condition is checked even without unregister event
-	ticker := time.NewTicker(1 * time.Second)
-	defer ticker.Stop()
-	for worker.State >= Open {
-		select {
-		case gameClient, open := <-worker.Unregister:
-			if open {
-				worker.log.Debug("Player disconnected")
-				if gameClient != nil {
-					worker.Clients.Delete(gameClient.uuid)
-					_ = gameClient.Close()
-					worker.ClientCount--
-				}
-			}
-		case <-ticker.C:
-			continue
-		}
-	}
+func (worker *Worker) Disconnect(gameClient *Client) {
+	worker.log.Debug("Player disconnected")
+	worker.Clients.Delete(gameClient.uuid)
+	_ = gameClient.Close()
+	worker.ClientCount--
 }
 
 //RunGame is the main game loop which prepares the posts and runs each round
 func (worker *Worker) RunGame() {
 	if worker.State == Started {
 		return
+	}
+	for len(worker.Posts) == 0 {
+		time.Sleep(1 * time.Second)
 	}
 	worker.State = Started
 	worker.log.Debug("Starting Game")
@@ -254,11 +237,9 @@ func (worker *Worker) handleClientAnswer(playerClient *Client, correctAnswer str
 func (worker *Worker) preparePosts() error {
 	worker.log.Debug("Preparing Posts")
 	//collect subreddits and posts
-	subreddits, err := redditHelper.GetTopSubreddits(10)
-	if err != nil {
-		return errors.Wrap(err, "Failed to prepare posts")
-	}
-	links, err := redditHelper.GetTopPostsForSubreddits(subreddits.GetSubPaths(), 5)
+	subreddits := redditHelper.GetTopSubreddits()
+
+	links, err := redditHelper.GetTopPostsForSubreddits(subreddits, 10)
 	if err != nil {
 		return errors.Wrap(err, "Failed to prepare posts")
 	}
@@ -272,9 +253,10 @@ func (worker *Worker) preparePosts() error {
 		}
 	}
 	//shuffle slice randomly and add them to the worker
+	rand.Seed(time.Now().UnixNano())
 	rand.Shuffle(len(posts), func(i, j int) { posts[i], posts[j] = posts[j], posts[i] })
 	worker.Posts = posts
-	worker.Subreddits = subreddits.GetSubPaths()
+	worker.Subreddits = subreddits
 	return nil
 }
 
@@ -291,6 +273,8 @@ func (worker *Worker) runRound(round int) {
 		postText = post.Data.Content
 	}
 
+	subreddits := preparePossibleAnswers(worker.Subreddits, post.Data.Subreddit)
+
 	//Parse the post into our RoundMessage format and marshal it to json
 	roundMessage := messages.NewRoundMessage()
 	roundMessage.Payload.Number = round
@@ -299,7 +283,7 @@ func (worker *Worker) runRound(round int) {
 	roundMessage.Payload.Post.Content = postText
 	roundMessage.Payload.Post.Type = post.GetType()
 	roundMessage.Payload.Post.Url = post.Data.Url
-	roundMessage.Payload.Subreddits = worker.Subreddits
+	roundMessage.Payload.Subreddits = subreddits
 	roundJson, err := json.Marshal(roundMessage)
 	if err != nil {
 		worker.log.WithError(err).
@@ -323,6 +307,23 @@ func (worker *Worker) runRound(round int) {
 		return true
 	})
 	wg.Wait()
+}
+
+func preparePossibleAnswers(possibleSubreddits []string, correctSubreddit string) []string {
+	fakeSubreddits := make([]string, len(possibleSubreddits))
+	copy(fakeSubreddits, possibleSubreddits)
+	rand.Shuffle(len(fakeSubreddits), func(i, j int) {
+		fakeSubreddits[i], fakeSubreddits[j] = fakeSubreddits[j], fakeSubreddits[i]
+	})
+	fakeSubreddits = utils.FilterString(fakeSubreddits, func(s string) bool {
+		return s != correctSubreddit
+	})
+	subreddits := []string{correctSubreddit}
+	subreddits = append(subreddits, fakeSubreddits[:3]...)
+	rand.Shuffle(len(subreddits), func(i, j int) {
+		subreddits[i], subreddits[j] = subreddits[j], subreddits[i]
+	})
+	return subreddits
 }
 
 func (worker *Worker) join(w http.ResponseWriter, r *http.Request, playerName string, playerUUID uuid.UUID) (*Client, error) {

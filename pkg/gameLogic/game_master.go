@@ -1,10 +1,14 @@
 package gameLogic
 
 import (
+	"crypto/md5"
+	"encoding/json"
+	"github.com/da-coda/whatsub/pkg/gameLogic/messages"
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
 	"github.com/sirupsen/logrus"
 	"hash"
+	"io"
 	"net/http"
 	"sync"
 	"time"
@@ -43,7 +47,6 @@ func (gm *GameMaster) CreateGame(hashedIp hash.Hash) (uuid.UUID, string) {
 	gameWorker.CreatorIpHash = sum
 	gameWorker.LobbyOpened = time.Now()
 	gameWorker.State = Open
-	go gameWorker.DisconnectHandler()
 
 	gm.Worker.Store(gameWorker.Id, gameWorker)
 	gm.workerShortIds.Store(gameWorker.ShortId, gameWorker.Id)
@@ -98,6 +101,30 @@ func (gm *GameMaster) StartGame(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	go gameWorker.(*Worker).RunGame()
+}
+
+func (gm *GameMaster) CreateGameHandler(writer http.ResponseWriter, request *http.Request) {
+	hashedIp := md5.New()
+	_, err := io.WriteString(hashedIp, request.RemoteAddr)
+	if err != nil {
+		logrus.WithError(err).Error("Unable to hash ip address")
+		writer.WriteHeader(500)
+		return
+	}
+	workerUuid, key := gm.CreateGame(hashedIp)
+	response := messages.NewCreatedGameMessage()
+	response.Payload.UUID = workerUuid.String()
+	response.Payload.Key = key
+	payload, err := json.Marshal(response)
+	if err != nil {
+		writer.WriteHeader(500)
+		return
+	}
+	_, err = writer.Write(payload)
+	if err != nil {
+		writer.WriteHeader(500)
+		return
+	}
 }
 
 //cleanUp checks for every running worker if the worker is still needed.

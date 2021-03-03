@@ -68,9 +68,7 @@ func (c *Client) Close() error {
 func (c *Client) readPump() {
 	defer func() {
 		c.log.Info("Closing websocket for read")
-		if c.Worker.State != Closed {
-			c.Worker.Unregister <- c
-		}
+		c.Worker.Disconnect(c)
 	}()
 	c.conn.SetReadLimit(maxMessageSize)
 	err := c.conn.SetReadDeadline(time.Now().Add(pongWait))
