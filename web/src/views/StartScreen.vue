@@ -33,6 +33,7 @@
 <script>
 import { createGame, joinGame } from '@/lib/whatsub'
 import BigLogo from '@/views/BigLogo'
+import { v4 as uuidv4 } from 'uuid'
 
 export default {
   name: 'StartScreen',
@@ -64,13 +65,13 @@ export default {
       Promise.all([username, game])
         .then(([username, game]) => {
           return new Promise((resolve) => {
-            const connection = joinGame(username.value, game.key)
-            resolve([game, connection])
+            const playerUUID = uuidv4()
+            const connection = joinGame(username.value, game.key, playerUUID)
+            resolve([game, connection, playerUUID])
           })
         })
-        .then(([game, connection]) => {
-          this.$store.commit('setGameId', game.uuid)
-          this.$store.commit('setGameHead', true)
+        .then(([game, connection, playerUUID]) => {
+          this.$store.commit('setGameData', game.uuid, playerUUID, true)
           this.$store.commit('setWebsocketConnection', connection)
           this.$router.push('/game/join/' + game.key)
         })

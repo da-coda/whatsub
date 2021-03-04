@@ -3,6 +3,7 @@ import { createStore } from 'vuex'
 export default createStore({
   state: {
     gameId: null,
+    playerUUID: null,
     isGameHead: false,
     websocketConnection: null
   },
@@ -20,20 +21,16 @@ export default createStore({
       }
     },
     /**
-     * Sets the uuid of the current game
+     * Save player game data
      * @param state
      * @param {uuid} gameId
+     * @param {uuid} playerUUID
+     * @param {boolean} isGameHead
      */
-    setGameId (state, gameId) {
+    setGameData (state, gameId, playerUUID, isGameHead) {
       state.gameId = gameId
-    },
-    /**
-     * Set if current user started the game
-     * @param state
-     * @param {boolean} isHead
-     */
-    setGameHead (state, isHead) {
-      state.isGameHead = isHead
+      state.playerUUID = playerUUID
+      state.isGameHead = isGameHead
     },
     /**
      * Save WebSocketConnection

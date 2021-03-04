@@ -18,10 +18,11 @@ function createGame () {
  *
  * @param {string} username
  * @param {string} link
+ * @param {string} link
  * @return {WebSocket}
  */
-function joinGame (username, link) {
-  const url = new URL('/game/' + link + '/join?name=' + username, window.location.href)
+function joinGame (username, link, playerUUID) {
+  const url = new URL('/game/' + link + '/join?name=' + username + '&uuid=' + playerUUID, window.location.href)
   url.protocol = url.protocol.replace('http', 'ws')
   url.protocol = url.protocol.replace('https', 'wss')
   return new WebSocket(url.href)
