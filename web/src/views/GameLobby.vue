@@ -1,27 +1,28 @@
 <template>
   <el-container>
-    <el-header style="height: 120px">
-      <h1>
-        WhatSub?
-      </h1>
-      <h3>Let the battle begin!</h3>
+    <el-header style="height: 260px">
+      <BigLogo />
+      <h4>Let the battle begin!</h4>
     </el-header>
     <el-main>
       <p>Copy this link to invite others: {{ gameLink }} or ask them to join a game with this code {{ code }}</p>
-      <button
+      <el-button
         v-if="isGameHead"
-        type="button"
+        type="success"
+        style="width: 200px; margin-top: 10px"
         @click="$router.push('/startGame')"
       >
         Start the game
-      </button>
+      </el-button>
     </el-main>
   </el-container>
 </template>
 <script>
 
+import BigLogo from '@/views/BigLogo'
 export default {
   name: 'NewGame',
+  components: { BigLogo },
   props: {
     code: {
       type: String,

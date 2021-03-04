@@ -1,6 +1,8 @@
 import { createApp } from 'vue'
-import App from './App.vue'
 import { ElButton, ElContainer, ElHeader, ElMain, ElFooter, ElRow, ElCol, ElMessageBox } from 'element-plus'
+import '../element-variables.scss'
+import App from './App.vue'
+
 import router from './router'
 import store from './store'
 

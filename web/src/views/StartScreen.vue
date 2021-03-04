@@ -1,8 +1,8 @@
 <template>
   <el-container>
-    <el-header height="120px">
-      <h1>WhatSub?</h1>
-      <h3>Battle against your friends and find out who knows Reddit the best!</h3>
+    <el-header height="260px">
+      <BigLogo />
+      <p>Battle against your friends and find out who knows Reddit the best!</p>
     </el-header>
     <el-main>
       <el-row>
@@ -32,12 +32,11 @@
 </template>
 <script>
 import { createGame, joinGame } from '@/lib/whatsub'
+import BigLogo from '@/views/BigLogo'
+
 export default {
   name: 'StartScreen',
-  components: {},
-  setup (props) {
-    console.log('gna gna')
-  },
+  components: { BigLogo },
   methods: {
     enterGameCode () {
       this.$prompt('Please enter the game code:', 'Join Game', {
