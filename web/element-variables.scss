@@ -1,0 +1,17 @@
+@import url(https://fonts.googleapis.com/css2?family=Signika:wght@400;700);
+$--color-primary: #ff4500;
+$--background-color-base: #2c3e50;
+$title-font: 'Signika';
+
+body{
+  background-color: $--background-color-base;
+  color: whitesmoke;
+}
+h1.headline{
+  font-family: $title-font;
+  font-weight: 700;
+}
+/* icon font path, required */
+$--font-path: '~element-plus/lib/theme-chalk/fonts';
+
+@import "~element-plus/packages/theme-chalk/src/index";
