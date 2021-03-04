@@ -20,9 +20,13 @@ type Subreddit struct {
 	Updated  time.Time `db:"last_updated"`
 }
 
+func GetTopSubreddits() []string {
+	return []string{"r/dankmemes", "r/memes", "r/camping", "r/home", "r/football", "r/science", "r/funny", "r/AskReddit", "r/gaming", "r/aww", "r/pics", "r/todayilearned", "r/Showerthoughts", "r/EarthPorn", "r/IAmA", "r/askscience", "r/explainlikeimfive", "r/LifeProTips"}
+}
+
 type Subreddits []Subreddit
 
-func GetTopSubreddits(limit int) (Subreddits, error) {
+func GetTopSubredditsDb(limit int) (Subreddits, error) {
 	var subreddits Subreddits
 	db := database.GetConn()
 	ctx := context.Background()
