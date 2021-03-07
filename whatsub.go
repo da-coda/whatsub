@@ -33,7 +33,7 @@ func main() {
 
 // registerRoutes sets up the REST endpoints for accessing the game
 func registerRoutes(router *mux.Router, gm *gameLogic.GameMaster) {
-	router.HandleFunc("/game/create", gm.CreateGameHandler)
+	router.HandleFunc("/game/create", gm.CreateGameHandler).Methods("POST")
 	//join as new User
 	router.HandleFunc("/game/{uuid_or_key}/join", gm.JoinGame).Queries("name", "{name}", "uuid", "{uuid}")
 	//re-join or lobby
