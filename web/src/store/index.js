@@ -4,6 +4,7 @@ export default createStore({
   state: {
     gameId: null,
     playerUUID: null,
+    playerName: null,
     isGameHead: false,
     websocketConnection: null
   },
@@ -15,22 +16,23 @@ export default createStore({
      */
     initialiseStore (state) {
       if (localStorage.getItem('store')) {
+        const loadedState = JSON.parse(localStorage.getItem('store'))
+        loadedState.websocketConnection = null
         this.replaceState(
-          Object.assign(state, JSON.parse(localStorage.getItem('store')))
+          Object.assign(state, loadedState)
         )
       }
     },
     /**
      * Save player game data
      * @param state
-     * @param {uuid} gameId
-     * @param {uuid} playerUUID
-     * @param {boolean} isGameHead
+     * @param {object} payload
      */
-    setGameData (state, gameId, playerUUID, isGameHead) {
-      state.gameId = gameId
-      state.playerUUID = playerUUID
-      state.isGameHead = isGameHead
+    setGameData (state, payload) {
+      state.gameId = payload.gameUUID
+      state.playerUUID = payload.playerUUID
+      state.playerName = payload.playerName
+      state.isGameHead = payload.isGameHead
     },
     /**
      * Save WebSocketConnection

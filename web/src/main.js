@@ -1,5 +1,5 @@
 import { createApp } from 'vue'
-import { ElButton, ElContainer, ElHeader, ElMain, ElFooter, ElRow, ElCol, ElMessageBox } from 'element-plus'
+import { ElButton, ElContainer, ElHeader, ElMain, ElFooter, ElRow, ElCol, ElMessageBox, ElDivider, ElLoading, ElDialog, ElForm, ElInput, ElMessage } from 'element-plus'
 import '../element-variables.scss'
 import App from './App.vue'
 
@@ -26,5 +26,11 @@ app.use(ElButton)
   .use(ElRow)
   .use(ElCol)
   .use(ElMessageBox)
+  .use(ElDivider)
+  .use(ElLoading)
+  .use(ElDialog)
+  .use(ElForm)
+  .use(ElInput)
+  .use(ElMessage)
 
 app.mount('#app')

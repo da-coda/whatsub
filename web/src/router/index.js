@@ -8,8 +8,14 @@ const routes = [
     component: StartScreen
   },
   {
-    path: '/game/join/:code',
-    name: 'NewGame',
+    path: '/game/:code/join',
+    name: 'JoinScreen',
+    props: true,
+    component: () => import(/* webpackChunkName: "JoinScreen" */ '../views/JoinScreen.vue')
+  },
+  {
+    path: '/game/:code/lobby',
+    name: 'GameLobby',
     props: true,
     component: () => import(/* webpackChunkName: "GameLobby" */ '../views/GameLobby.vue')
   }
