@@ -1,7 +1,10 @@
 @import url(https://fonts.googleapis.com/css2?family=Signika:wght@400;700);
 $--color-primary: #ff4500;
-$--background-color-base: #2c3e50;
+$--background-color-base: #4D4B83;
+$default-font: "Helvetica Neue",Helvetica,"PingFang SC","Hiragino Sans GB","Microsoft YaHei","微软雅黑",Arial,sans-serif;
 $title-font: 'Signika';
+/* icon font path, required */
+$--font-path: '~element-plus/lib/theme-chalk/fonts';
 
 body{
   background-color: $--background-color-base;
@@ -11,7 +14,8 @@ h1.headline{
   font-family: $title-font;
   font-weight: 700;
 }
-/* icon font path, required */
-$--font-path: '~element-plus/lib/theme-chalk/fonts';
+.el-message {
+  font-family: $default-font;
+}
 
 @import "~element-plus/packages/theme-chalk/src/index";
