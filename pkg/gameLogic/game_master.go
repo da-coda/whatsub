@@ -18,6 +18,7 @@ import (
 
 const (
 	MaxAllowedGamesPerIP = 5
+	CleanUpInterval      = 1 * time.Second
 )
 
 var (
@@ -29,11 +30,12 @@ type GameMaster struct {
 	Worker                sync.Map
 	workerShortIds        sync.Map
 	hashedIpsRunningGames sync.Map
+	factory               game.WorkerProvider
 }
 
 //NewGameMaster creates a new GameMaster and starts the cleanUp routine for this game master
-func NewGameMaster() *GameMaster {
-	gm := &GameMaster{}
+func NewGameMaster(factory game.WorkerProvider) *GameMaster {
+	gm := &GameMaster{factory: factory}
 	go gm.cleanUp()
 	return gm
 }
@@ -49,7 +51,7 @@ func (gm *GameMaster) CreateGame(hashedIp hash.Hash, gameType string) (uuid.UUID
 	if gamesRunning == nil {
 		gamesRunning = 0
 	}
-	gameWorkerConst, err := game.WorkerFactory(gameType)
+	gameWorkerConst, err := gm.factory.GetConstructor(gameType)
 	if err != nil {
 		if errors.Is(err, game.UnknownGameTypeErr) {
 			return [16]byte{}, "", errors.Wrapf(err, "Unknown game type given: %s", gameType)
@@ -174,6 +176,6 @@ func (gm *GameMaster) cleanUp() {
 			}
 			return true
 		})
-		time.Sleep(1 * time.Second)
+		time.Sleep(CleanUpInterval)
 	}
 }

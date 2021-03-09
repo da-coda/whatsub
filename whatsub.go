@@ -2,6 +2,7 @@ package main
 
 import (
 	"github.com/da-coda/whatsub/pkg/gameLogic"
+	"github.com/da-coda/whatsub/pkg/gameLogic/game"
 	"github.com/gorilla/mux"
 	"github.com/sirupsen/logrus"
 	"log"
@@ -19,7 +20,7 @@ func main() {
 		logrus.WithError(err).Error("Unable to connect to DB")
 		os.Exit(1)
 	}*/
-	gm := gameLogic.NewGameMaster()
+	gm := gameLogic.NewGameMaster(game.WorkerFactory{})
 	router := mux.NewRouter()
 	router.HandleFunc("/game/create", gm.CreateGameHandler)
 	//join

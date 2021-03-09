@@ -47,15 +47,6 @@ type Worker interface {
 	Creator() string
 }
 
-func WorkerFactory(workerType string) (WorkerConstructor, error) {
-	switch workerType {
-	case "TopOfTheTop":
-		return newTopOfTheTopWorker, nil
-	default:
-		return nil, UnknownGameTypeErr
-	}
-}
-
 func CanTransition(currentState State, transitionState State) bool {
 	possibleTransitions := AllowedTransitions[currentState]
 	for _, transState := range possibleTransitions {
