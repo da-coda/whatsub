@@ -1,10 +1,11 @@
 <template>
-  <el-container>
-    <el-header height="260px">
-      <BigLogo />
-      <p>Battle against your friends and find out who knows Reddit the best!</p>
-    </el-header>
-    <el-main>
+  <div style="width: 100%">
+    <div class="main-background">
+      <el-row>
+        <el-col>
+          <BigLogo />
+        </el-col>
+      </el-row>
       <el-row>
         <el-col>
           <el-button
@@ -21,61 +22,40 @@
           <el-button
             type="success"
             style="width: 200px; margin-top: 10px"
-            @click="enterGameCode"
+            @click="joinGame"
           >
-            Join Lobby
+            Join Game
           </el-button>
         </el-col>
       </el-row>
-    </el-main>
-  </el-container>
+    </div>
+  </div>
 </template>
 <script>
-import { createGame, joinGame } from '@/lib/whatsub'
+import { createGame } from '@/lib/whatsub'
 import BigLogo from '@/views/BigLogo'
-import { v4 as uuidv4 } from 'uuid'
 
 export default {
   name: 'StartScreen',
   components: { BigLogo },
   methods: {
-    enterGameCode () {
-      this.$prompt('Please enter the game code:', 'Join Game', {
-        confirmButtonText: 'OK',
-        cancelButton: 'Cancel'
-      }).then(({ value }) => {
-        this.$message({
-          type: 'success',
-          message: 'YAYAYYAY'
-        })
-      }).catch(() => {
-        this.$message({
-          type: 'info',
-          message: 'Input canceled'
-        })
-      }
-      )
-    },
     openNewGame () {
-      const username = this.$prompt('Please enter your username', 'Username', {
-        confirmButtonText: 'OK',
-        cancelButtonText: 'Cancel'
-      })
-      const game = createGame()
-      Promise.all([username, game])
-        .then(([username, game]) => {
-          return new Promise((resolve) => {
-            const playerUUID = uuidv4()
-            const connection = joinGame(username.value, game.key, playerUUID)
-            resolve([game, connection, playerUUID])
-          })
-        })
-        .then(([game, connection, playerUUID]) => {
-          this.$store.commit('setGameData', game.uuid, playerUUID, true)
-          this.$store.commit('setWebsocketConnection', connection)
-          this.$router.push('/game/join/' + game.key)
-        })
+      createGame()
+        .then(game => this.$router.push('/game/' + game.key + '/create'))
+    },
+    joinGame () {
+      this.$router.push('/game/join')
     }
   }
 }
 </script>
+<style scoped>
+.main-background{
+  width: 350px;
+  margin: auto;
+  border-radius: 25px;
+  background-color: rgba(0, 0, 0, 0.2);
+  padding-top: 30px;
+  padding-bottom: 30px;
+}
+</style>

@@ -8,9 +8,25 @@ const routes = [
     component: StartScreen
   },
   {
+    path: '/game/join',
+    name: 'JoinScreenByCode',
+    component: () => import(/* webpackChunkName: "JoinScreen" */ '../views/JoinScreen.vue')
+  },
+  {
     path: '/game/:code/join',
-    name: 'JoinScreen',
+    name: 'JoinScreenByLink',
     props: true,
+    component: () => import(/* webpackChunkName: "JoinScreen" */ '../views/JoinScreen.vue')
+  },
+  {
+    path: '/game/:code/create',
+    name: 'JoinScreenCreated',
+    props (route) {
+      return {
+        code: route.params.code,
+        isGameHead: true
+      }
+    },
     component: () => import(/* webpackChunkName: "JoinScreen" */ '../views/JoinScreen.vue')
   },
   {

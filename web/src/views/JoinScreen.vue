@@ -8,19 +8,7 @@
       </el-row>
       <el-row>
         <el-col>
-          <span style="display: block; margin: auto; width: 200px; text-align: left;">Game Id</span>
-          <el-input
-            v-model="gameKey"
-            maxlength="40"
-            style="width: 200px;"
-            placeholder="Enter Game Id"
-            :disabled="true"
-          />
-        </el-col>
-      </el-row>
-      <el-row>
-        <el-col>
-          <span style="display: block; margin: auto; width: 200px; text-align: left; padding-top: 10px">Username</span>
+          <span style="display: block; margin: auto; width: 200px; text-align: left;">Username</span>
           <el-input
             v-model="username"
             maxlength="40"
@@ -31,12 +19,24 @@
       </el-row>
       <el-row>
         <el-col>
+          <span style="display: block; margin: auto; width: 200px; text-align: left; padding-top: 10px">Game Id</span>
+          <el-input
+            v-model="gameKey"
+            maxlength="40"
+            style="width: 200px;"
+            placeholder="Enter Game Id"
+            :disabled="disableGameId"
+          />
+        </el-col>
+      </el-row>
+      <el-row>
+        <el-col>
           <el-button
             type="success"
             style="width: 200px; margin-top: 10px"
             @click="openLobby"
           >
-            Create Game
+            {{ joinButtonLabel }}
           </el-button>
         </el-col>
       </el-row>
@@ -55,6 +55,10 @@ export default {
     code: {
       type: String,
       default: null
+    },
+    isGameHead: {
+      type: Boolean,
+      default: false
     }
   },
   data () {
@@ -63,20 +67,36 @@ export default {
       gameKey: this.code
     }
   },
+  computed: {
+    disableGameId () {
+      return this.code !== null
+    },
+    joinButtonLabel () {
+      if (this.isGameHead) {
+        return 'Create Game'
+      }
+      return 'Join Game'
+    }
+  },
   methods: {
     openLobby () {
       const playerUUID = uuidv4()
-      const connection = joinGame(this.username, this.code, playerUUID)
-      this.$store.commit('setGameData',
-        {
-          gameUUID: this.code,
-          playerUUID: playerUUID,
-          playerName: this.username,
-          isGameHead: true
-        }
-      )
-      this.$store.commit('setWebsocketConnection', connection)
-      this.$router.push('/game/' + this.code + '/lobby')
+      const connection = joinGame(this.username, this.gameKey, playerUUID)
+      connection.onopen = () => {
+        this.$store.commit('setGameData',
+          {
+            gameUUID: this.gameKey,
+            playerUUID: playerUUID,
+            playerName: this.username,
+            isGameHead: true
+          }
+        )
+        this.$store.commit('setWebsocketConnection', connection)
+        this.$router.push('/game/' + this.gameKey + '/lobby')
+      }
+      connection.onerror = () => {
+        console.log('sad noises')
+      }
     }
   }
 }

@@ -4,7 +4,10 @@
     width="75"
     style="float: right;"
   >
-  <div class="box">
+  <div
+    v-if="isGameHead"
+    class="box"
+  >
     <p>
       Game ID: <strong id="code-span">{{ code }}</strong> <i
         class="el-icon-document-copy"
@@ -34,6 +37,7 @@
     </span>
   </div>
   <el-button
+    v-if="isGameHead"
     type="success"
     style="width: 200px; margin-top: 10px"
   >
@@ -66,14 +70,13 @@ export default {
       return this.$store.state.isGameHead
     },
     gameLink () {
-      return baseUrl + this.$router.resolve({ name: 'GameLobby', code: this.code }).href
+      return baseUrl + this.$router.resolve({ name: 'JoinScreenByLink', code: this.code }).href
     },
     playerGrid () {
       return this.players.join(' ')
     }
   },
   mounted () {
-    this.players = [this.$store.state.playerName]
     if (this.$store.state.websocketConnection === null) {
       let webSocket = null
       let playerName = this.$store.state.playerName
