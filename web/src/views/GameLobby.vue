@@ -50,7 +50,7 @@ import { joinGame, baseUrl } from '@/lib/whatsub'
 import { v4 as uuidv4 } from 'uuid'
 
 export default {
-  name: 'NewGame',
+  name: 'GameLobby',
   components: { },
   props: {
     code: {

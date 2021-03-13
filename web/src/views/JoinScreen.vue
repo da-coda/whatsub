@@ -49,7 +49,7 @@ import BigLogo from '@/views/BigLogo'
 import { v4 as uuidv4 } from 'uuid'
 
 export default {
-  name: 'StartScreen',
+  name: 'JoinScreen',
   components: { BigLogo },
   props: {
     code: {
