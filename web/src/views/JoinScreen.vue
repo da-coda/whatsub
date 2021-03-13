@@ -88,7 +88,7 @@ export default {
             gameUUID: this.gameKey,
             playerUUID: playerUUID,
             playerName: this.username,
-            isGameHead: true
+            isGameHead: this.isGameHead
           }
         )
         this.$store.commit('setWebsocketConnection', connection)

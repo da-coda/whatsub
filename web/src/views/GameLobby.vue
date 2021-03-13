@@ -27,14 +27,14 @@
   <h3>Player</h3>
   <div
     id="player"
-    class="box"
+    class="box flexy"
   >
-    <span
+    <div
       v-for="player in players"
       :key="player"
     >
       {{ player }}
-    </span>
+    </div>
   </div>
   <el-button
     v-if="isGameHead"
@@ -139,6 +139,15 @@ div.box{
   background-color: rgba(0, 0, 0, 0.2);
   padding-top: 10px;
   padding-bottom: 10px;
+}
+div.flexy{
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+.flexy > div {
+  margin: 10px;
 }
 a.href {
   color: whitesmoke;
