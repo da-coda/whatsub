@@ -31,4 +31,13 @@ function joinGame (username, link, playerUUID) {
   return new WebSocket(url.href)
 }
 
-export { joinGame, createGame }
+/**
+ *
+ * @param {string} link
+ * @return {Promise}
+ */
+function startGame (link) {
+  return axios.get('/game/' + link + '/start')
+}
+
+export { joinGame, createGame, startGame }

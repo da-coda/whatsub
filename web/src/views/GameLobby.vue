@@ -40,13 +40,14 @@
     v-if="isGameHead"
     type="success"
     style="width: 200px; margin-top: 10px"
+    @click="startGame"
   >
     Start Game
   </el-button>
 </template>
 <script>
 
-import { joinGame, baseUrl } from '@/lib/whatsub'
+import { startGame, joinGame, baseUrl } from '@/lib/whatsub'
 import { v4 as uuidv4 } from 'uuid'
 
 export default {
@@ -60,7 +61,6 @@ export default {
   },
   data () {
     return {
-      loading: true,
       rejoin: false,
       players: []
     }
@@ -71,9 +71,6 @@ export default {
     },
     gameLink () {
       return baseUrl + this.$router.resolve({ name: 'JoinScreenByLink', code: this.code }).href
-    },
-    playerGrid () {
-      return this.players.join(' ')
     }
   },
   mounted () {
@@ -127,6 +124,14 @@ export default {
       navigator.clipboard.writeText(clip).then(() => {
         this.$message({ message: 'Copied to clipboard' })
       })
+    },
+    startGame () {
+      console.log('Starting the game')
+      const gameViewURL = this.$router.resolve({ name: 'Game', code: this.gameLink }).path
+      startGame(this.gameLink)
+        .then(() =>
+          this.$router.push(gameViewURL)
+        )
     }
   }
 }
