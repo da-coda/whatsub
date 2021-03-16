@@ -8,7 +8,7 @@ export const baseUrl = window.location.protocol +
  * @return {Promise<{uuid: *, key: *}>}
  */
 function createGame () {
-  return axios.get('/game/create')
+  return axios.post('/game/create')
     .then((response) => {
       return {
         uuid: response.data.Payload.UUID,
