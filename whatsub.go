@@ -38,5 +38,5 @@ func registerRoutes(router *mux.Router, gm *gameLogic.GameMaster) {
 	router.HandleFunc("/game/{uuid_or_key}/join", gm.JoinGame).Queries("name", "{name}", "uuid", "{uuid}")
 	//re-join or lobby
 	router.HandleFunc("/game/{uuid_or_key}/join", gm.JoinGame).Queries("uuid", "{uuid}")
-	router.HandleFunc("/game/{uuid}/start", gm.StartGame)
+	router.HandleFunc("/game/{uuid_or_key}/start", gm.StartGame)
 }

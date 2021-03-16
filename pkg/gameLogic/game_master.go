@@ -85,12 +85,18 @@ func (gm *GameMaster) JoinGame(w http.ResponseWriter, r *http.Request) {
 func (gm *GameMaster) StartGame(w http.ResponseWriter, r *http.Request) {
 	//Get needed params from request
 	vars := mux.Vars(r)
-	workerId := vars["uuid"]
+	workerId := vars["uuid_or_key"]
+
+	//Parse uuid and find matching worker
 	workerUuid, err := uuid.Parse(workerId)
 	if err != nil {
-		logrus.WithError(err).Error("Unable to parse worker id")
-		w.WriteHeader(400)
-		return
+		id, exists := gm.workerShortIds.Load(workerId)
+		if !exists {
+			logrus.WithError(err).Error("Unable to parse worker id")
+			w.WriteHeader(400)
+			return
+		}
+		workerUuid = id.(uuid.UUID)
 	}
 
 	//Find worker and start game
