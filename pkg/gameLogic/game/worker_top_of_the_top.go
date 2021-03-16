@@ -1,4 +1,4 @@
-package gameLogic
+package game
 
 import (
 	"encoding/json"
@@ -25,18 +25,8 @@ var upgrader = websocket.Upgrader{CheckOrigin: func(r *http.Request) bool {
 	return true
 }}
 
-type State int
-
-const (
-	Created State = iota
-	Open
-	Started
-	Done
-	Closed
-)
-
 //Worker handles a single game, holds all participating clients and needed resources for the game
-type Worker struct {
+type topOfTheTopWorker struct {
 	Id            uuid.UUID
 	ShortId       string
 	Clients       sync.Map
@@ -48,29 +38,31 @@ type Worker struct {
 	RoundsTotal   int
 	Created       time.Time
 	LobbyOpened   time.Time
-	State         State
+	WorkerState   State
 	ClientCount   uint64
 	log           *logrus.Entry
 }
 
-//NewWorker creates a new Worker and setups channels
-func NewWorker() *Worker {
-	w := &Worker{
-		Id:          uuid.New(),
-		ShortId:     utils.KeyGenerator(8),
-		RoundsTotal: 10,
-		Created:     time.Now(),
-		State:       Created,
-		Clients:     sync.Map{},
-		ClientCount: 0,
+//newTopOfTheTopWorker creates a new Worker and setups channels
+func newTopOfTheTopWorker(ipHash string) Worker {
+	w := topOfTheTopWorker{
+		Id:            uuid.New(),
+		ShortId:       utils.KeyGenerator(8),
+		RoundsTotal:   10,
+		Created:       time.Now(),
+		WorkerState:   Created,
+		Clients:       sync.Map{},
+		ClientCount:   0,
+		LobbyOpened:   time.Now(),
+		CreatorIpHash: ipHash,
 	}
 	w.log = logrus.WithField("Worker", w.Id.String())
-	return w
+	return &w
 }
 
 //Close implements the io.Closer interface and closes all channels and calls Client.Close on all connected clients
-func (worker *Worker) Close() error {
-	worker.State = Closed
+func (worker *topOfTheTopWorker) Close() error {
+	_ = worker.TransitionState(Closed)
 	worker.log.Debug("Terminating worker because Close() got called")
 	worker.Clients.Range(func(_, value interface{}) bool {
 		client := value.(*Client)
@@ -81,7 +73,7 @@ func (worker *Worker) Close() error {
 }
 
 //OpenLobby checks if a new worker registers while the worker State is Open
-func (worker *Worker) Join(w http.ResponseWriter, r *http.Request) {
+func (worker *topOfTheTopWorker) Join(w http.ResponseWriter, r *http.Request) {
 	playerName := r.FormValue("name")
 	playerUUIDString := r.FormValue("uuid")
 	playerUUID, err := uuid.Parse(playerUUIDString)
@@ -90,7 +82,7 @@ func (worker *Worker) Join(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(400)
 		return
 	}
-	switch worker.State {
+	switch worker.State() {
 	case Started:
 		if _, exists := worker.Score.Load(playerUUIDString); exists {
 			client, err := worker.join(w, r, playerName, playerUUID)
@@ -115,26 +107,38 @@ func (worker *Worker) Join(w http.ResponseWriter, r *http.Request) {
 	worker.sendScoreMessage()
 }
 
-func (worker *Worker) Disconnect(gameClient *Client) {
+func (worker *topOfTheTopWorker) Disconnect(gameClient *Client) {
 	worker.log.Debug("Player disconnected")
 	worker.Clients.Delete(gameClient.uuid)
 	_ = gameClient.Close()
 	worker.ClientCount--
 }
 
-//RunGame is the main game loop which prepares the posts and runs each round
-func (worker *Worker) RunGame() {
-	if worker.State == Started {
+//Run is the main game loop which prepares the posts and runs each round
+func (worker *topOfTheTopWorker) Run() {
+	if worker.State() == Started {
 		return
 	}
 	for len(worker.Posts) == 0 {
 		time.Sleep(1 * time.Second)
 	}
-	worker.State = Started
+	err := worker.TransitionState(Started)
+	if err != nil {
+		worker.log.WithError(err).Error("Unable to transition to Started state. Terminating worker.")
+		err = worker.TransitionState(Done)
+		if err != nil {
+			worker.log.WithError(err).Error("Unable to transition to done state gracefully. Setting Done state directly")
+			worker.WorkerState = Done
+		}
+		return
+	}
 	worker.log.Debug("Starting Game")
 
 	// run Worker.RoundsTotal rounds
 	for i := 0; i < worker.RoundsTotal; i++ {
+		if worker.State() == Closed {
+			return
+		}
 		worker.runRound(i)
 		worker.sendScoreMessage()
 		time.Sleep(2 * time.Second)
@@ -160,38 +164,42 @@ func (worker *Worker) RunGame() {
 		}
 		return true
 	})
-	//set State to Done so that the clean up routine of GameMaster can handle the termination of the worker and clients
-	worker.State = Done
+	//set WorkerState to Done so that the clean up routine of GameMaster can handle the termination of the worker and clients
+	err = worker.TransitionState(Done)
+	if err != nil {
+		worker.log.WithError(err).Error("Unable to transition worker gracefully. Going to transition directly to Closed!")
+		worker.WorkerState = Done
+	}
 }
 
 // StillNeeded checks for different conditions to decide if this worker is still needed
-func (worker *Worker) StillNeeded() bool {
+func (worker *topOfTheTopWorker) StillNeeded() bool {
 	// All rounds are played, game is done
-	if worker.State == Done {
+	if worker.State() == Done {
 		worker.log.Debug("Game is done")
 		return false
 	}
 
 	// Lobby been open for EmptyLobbyTimeout minutes without anyone joining
-	if worker.State == Open && worker.ClientCount == 0 && worker.LobbyOpened.Add(EmptyLobbyTimeout).Before(time.Now()) {
+	if worker.State() == Open && worker.ClientCount == 0 && worker.LobbyOpened.Add(EmptyLobbyTimeout).Before(time.Now()) {
 		worker.log.Debug("Lobby been empty for too long")
 		return false
 	}
 
 	// Lobby been open for LobbyNotStartedTimeout without starting the game
-	if worker.State == Open && worker.LobbyOpened.Add(LobbyNotStartedTimeout).Before(time.Now()) {
+	if worker.State() == Open && worker.LobbyOpened.Add(LobbyNotStartedTimeout).Before(time.Now()) {
 		worker.log.Debug("Lobby been open for too long")
 		return false
 	}
 
 	// Worker got created but game didn't start within the duration InactiveNotStartedTimeout
-	if worker.State == Created && worker.Created.Add(InactiveNotStartedTimeout).Before(time.Now()) {
+	if worker.State() == Created && worker.Created.Add(InactiveNotStartedTimeout).Before(time.Now()) {
 		worker.log.Debug("Game never started")
 		return false
 	}
 
 	// All clients left during the game
-	if worker.State == Started && worker.ClientCount == 0 {
+	if worker.State() == Started && worker.ClientCount == 0 {
 		worker.log.Debug("Game abandoned")
 		return false
 	}
@@ -199,8 +207,32 @@ func (worker *Worker) StillNeeded() bool {
 	return true
 }
 
+func (worker *topOfTheTopWorker) ID() uuid.UUID {
+	return worker.Id
+}
+
+func (worker *topOfTheTopWorker) State() State {
+	return worker.WorkerState
+}
+
+func (worker *topOfTheTopWorker) Key() string {
+	return worker.ShortId
+}
+
+func (worker *topOfTheTopWorker) TransitionState(state State) error {
+	if CanTransition(worker.State(), state) {
+		worker.WorkerState = state
+		return nil
+	}
+	return errors.Wrapf(IllegalStateTransitionErr, "Can't transition from %s to %s", worker.State().String(), state.String())
+}
+
+func (worker *topOfTheTopWorker) Creator() string {
+	return worker.CreatorIpHash
+}
+
 //handleClientAnswer handles the incoming answer of a single client, updates the score if necessary, notifies the client
-func (worker *Worker) handleClientAnswer(playerClient *Client, correctAnswer string, wg *sync.WaitGroup) {
+func (worker *topOfTheTopWorker) handleClientAnswer(playerClient *Client, correctAnswer string, wg *sync.WaitGroup) {
 	defer wg.Done()
 	//receive answer from client
 	answerJson, ok := <-playerClient.Message
@@ -238,7 +270,7 @@ func (worker *Worker) handleClientAnswer(playerClient *Client, correctAnswer str
 }
 
 //preparePosts collects subreddits and posts for those subreddits, shuffles them around and adds them to the worker
-func (worker *Worker) preparePosts() error {
+func (worker *topOfTheTopWorker) preparePosts() error {
 	worker.log.Debug("Preparing Posts")
 	//collect subreddits and posts
 	subreddits := redditHelper.GetTopSubreddits()
@@ -265,7 +297,7 @@ func (worker *Worker) preparePosts() error {
 }
 
 //runRound handles a single round by parsing a post into the RoundMessage struct, sending it to all clients and spawning a handler for incoming answers
-func (worker *Worker) runRound(round int) {
+func (worker *topOfTheTopWorker) runRound(round int) {
 	worker.log.WithField("Round", round).Info("Starting Round")
 	var wg sync.WaitGroup
 
@@ -330,7 +362,7 @@ func preparePossibleAnswers(possibleSubreddits []string, correctSubreddit string
 	return subreddits
 }
 
-func (worker *Worker) join(w http.ResponseWriter, r *http.Request, playerName string, playerUUID uuid.UUID) (*Client, error) {
+func (worker *topOfTheTopWorker) join(w http.ResponseWriter, r *http.Request, playerName string, playerUUID uuid.UUID) (*Client, error) {
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		worker.log.Error("Unable to rejoin player")
@@ -342,14 +374,18 @@ func (worker *Worker) join(w http.ResponseWriter, r *http.Request, playerName st
 	if len(worker.Posts) == 0 {
 		err := worker.preparePosts()
 		if err != nil {
-			worker.State = Done
+			transErr := worker.TransitionState(Done)
+			if transErr != nil {
+				worker.log.WithError(err).Error("Unable to transition worker state smoothly. Setting Done state directly.")
+				worker.WorkerState = Done
+			}
 			return nil, errors.Wrap(err, "Failed to prepare posts. Game won't start!")
 		}
 	}
 	return gameClient, nil
 }
 
-func (worker *Worker) sendScoreMessage() {
+func (worker *topOfTheTopWorker) sendScoreMessage() {
 	msg := messages.NewScoreMessage()
 	worker.Clients.Range(func(_, value interface{}) bool {
 		client := value.(*Client)
