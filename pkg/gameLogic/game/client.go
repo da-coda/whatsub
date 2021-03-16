@@ -1,4 +1,4 @@
-package gameLogic
+package game
 
 import (
 	"bytes"
@@ -31,7 +31,7 @@ type Client struct {
 	conn       *websocket.Conn
 	uuid       uuid.UUID
 	Name       string
-	Worker     *Worker
+	Worker     Worker
 	Send       chan []byte
 	Message    chan []byte
 	Blocked    bool
@@ -40,7 +40,7 @@ type Client struct {
 	Terminated bool
 }
 
-func NewClient(conn *websocket.Conn, name string, uuid uuid.UUID, gameWorker *Worker) *Client {
+func NewClient(conn *websocket.Conn, name string, uuid uuid.UUID, gameWorker Worker) *Client {
 	client := &Client{
 		conn:    conn,
 		Name:    name,
@@ -50,7 +50,7 @@ func NewClient(conn *websocket.Conn, name string, uuid uuid.UUID, gameWorker *Wo
 		Message: make(chan []byte),
 		close:   make(chan bool),
 	}
-	client.log = logrus.WithField("Client", client.Name).WithField("Worker", gameWorker.Id.String())
+	client.log = logrus.WithField("Client", client.Name).WithField("Worker", gameWorker.ID().String())
 	go client.readPump()
 	go client.writePump()
 	return client
@@ -93,7 +93,7 @@ func (c *Client) readPump() {
 			c.log.WithField("Message", message).Trace("Message on blocked client")
 			continue
 		}
-		if c.Worker.State != Closed {
+		if c.Worker.State() != Closed {
 			c.Message <- message
 		}
 	}

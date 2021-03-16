@@ -16,3 +16,4 @@
 .idea
 whatsub
 node_modules
+/pkg/gameLogic/game/state_string.go
