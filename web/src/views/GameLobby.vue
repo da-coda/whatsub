@@ -127,8 +127,8 @@ export default {
     },
     startGame () {
       console.log('Starting the game')
-      const gameViewURL = this.$router.resolve({ name: 'Game', code: this.gameLink }).path
-      startGame(this.gameLink)
+      const gameViewURL = this.$router.resolve({ name: 'Game', code: this.code }).path
+      startGame(this.code)
         .then(() =>
           this.$router.push(gameViewURL)
         )
