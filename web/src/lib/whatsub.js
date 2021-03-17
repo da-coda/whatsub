@@ -37,7 +37,7 @@ function joinGame (username, link, playerUUID) {
  * @return {Promise}
  */
 function startGame (link) {
-  return axios.get('/game/' + link + '/start')
+  return axios.get(baseUrl + '/game/' + link + '/start')
 }
 
 export { joinGame, createGame, startGame }
