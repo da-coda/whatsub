@@ -70,10 +70,11 @@ export default {
       return this.$store.state.isGameHead
     },
     gameLink () {
-      return baseUrl + this.$router.resolve({ name: 'JoinScreenByLink', code: this.code }).href
+      return baseUrl + '/' + this.$router.resolve({ name: 'JoinScreenByLink', code: this.code }).href
     }
   },
   mounted () {
+    console.log('Game started')
     if (this.$store.state.websocketConnection === null) {
       let webSocket = null
       let playerName = this.$store.state.playerName
