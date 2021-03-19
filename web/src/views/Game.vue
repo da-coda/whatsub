@@ -97,12 +97,13 @@ export default {
         case 'score': {
           console.log('I got a score')
           const data = JSON.parse(event.data)
-          console.log(data.Payload.Scores)
-          that.players = Object.keys(data.Payload.Scores)
+          this.$store.commit('updateScoreBoard', data.Scores)
           break
         }
-        default:
-          console.log(event.data)
+        case 'finished': {
+          console.log('We are done!')
+          this.$router.push('/game/' + this.gameKey + '/finished')
+        }
       }
     }
   },
