@@ -4,11 +4,29 @@
     width="75"
     style="float: right;"
   >
+  <div v-if="round">
+    <div>Round: {{ round.Number }} of {{ round.From }}</div>
+    <div>{{ round.Post.Title }}</div>
+    <component
+      :is="content"
+      v-bind="{ round: round.Post }"
+    />
+    <div>
+      <el-button
+        v-for="subreddit in round.Subreddits"
+        :key="subreddit"
+      >
+        {{ subreddit }}
+      </el-button>
+    </div>
+  </div>
 </template>
 <script>
 
-import { joinGame, baseUrl } from '@/lib/whatsub'
+import { joinGame } from '@/lib/whatsub'
 import { v4 as uuidv4 } from 'uuid'
+import ImagePost from '@/components/game/ImagePost'
+import HtmlPost from '@/components/game/HtmlPost'
 
 export default {
   name: 'Game',
@@ -23,18 +41,25 @@ export default {
     return {
       loading: true,
       rejoin: false,
-      players: []
+      players: [],
+      round: {
+        Post: {
+          Title: null
+
+        }
+      }
     }
   },
   computed: {
-    isGameHead () {
-      return this.$store.state.isGameHead
-    },
-    gameLink () {
-      return baseUrl + this.$router.resolve({ name: 'JoinScreenByLink', code: this.code }).href
-    },
-    playerGrid () {
-      return this.players.join(' ')
+    content () {
+      const type = this.round.Post.Type
+      switch (type) {
+        case 'Image':
+          return ImagePost
+        case 'Text':
+          return HtmlPost
+      }
+      return null
     }
   },
   mounted () {
@@ -63,8 +88,10 @@ export default {
       const msg = JSON.parse(event.data)
       console.log(event.data)
       switch (msg.Type) {
-        case 'join': {
-          // TODO: display joined user
+        case 'round': {
+          const data = JSON.parse(event.data)
+          console.log('Round: ' + data.Payload)
+          that.round = data.Payload
           break
         }
         case 'left': {
