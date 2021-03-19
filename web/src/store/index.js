@@ -6,7 +6,8 @@ export default createStore({
     playerUUID: null,
     playerName: null,
     isGameHead: false,
-    websocketConnection: null
+    websocketConnection: null,
+    scoreBoard: {}
   },
   mutations: {
     /**
@@ -41,6 +42,9 @@ export default createStore({
      */
     setWebsocketConnection (state, websocketConnection) {
       state.websocketConnection = websocketConnection
+    },
+    updateScoreBoard (state, scores) {
+      state.scoreBoard = scores
     }
   },
   actions: {

@@ -42,7 +42,6 @@ export default {
     return {
       loading: true,
       rejoin: false,
-      players: [],
       round: {
         Post: {
           Title: null
@@ -122,28 +121,5 @@ export default {
 }
 </script>
 <style scoped>
-div.box{
-  width: 700px;
-  margin: auto;
-  border-radius: 25px;
-  background-color: rgba(0, 0, 0, 0.2);
-  padding-top: 10px;
-  padding-bottom: 10px;
-}
-div.flexy{
-  display: flex;
-  flex-direction: row;
-  flex-wrap: wrap;
-  justify-content: center;
-}
-.flexy > div {
-  margin: 10px;
-}
-a.href {
-  color: whitesmoke;
-  font-weight: 700;
-}
-i.el-icon-document-copy {
-  cursor: pointer;
-}
+
 </style>
