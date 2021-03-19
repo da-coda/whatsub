@@ -102,7 +102,7 @@ export default {
         }
         case 'finished': {
           console.log('We are done!')
-          this.$router.push('/game/' + this.gameKey + '/finished')
+          this.$router.push('/game/' + this.code + '/finished')
         }
       }
     }

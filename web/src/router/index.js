@@ -36,6 +36,12 @@ const routes = [
     component: () => import(/* webpackChunkName: "GameLobby" */ '../views/GameLobby.vue')
   },
   {
+    path: '/game/:code/finished',
+    name: 'GameEndScreen',
+    props: true,
+    component: () => import(/* webpackChunkName: "GameEndScreen" */ '../views/GameEndScreen.vue')
+  },
+  {
     path: '/game/:code',
     name: 'Game',
     props: true,
