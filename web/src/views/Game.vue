@@ -15,6 +15,7 @@
       <el-button
         v-for="subreddit in round.Subreddits"
         :key="subreddit"
+        @click="chooseSubreddit(subreddit)"
       >
         {{ subreddit }}
       </el-button>
@@ -94,10 +95,6 @@ export default {
           that.round = data.Payload
           break
         }
-        case 'left': {
-          // TODO: display joined user
-          break
-        }
         case 'score': {
           console.log('I got a score')
           const data = JSON.parse(event.data)
@@ -111,10 +108,15 @@ export default {
     }
   },
   methods: {
-    copyCode (clip) {
-      navigator.clipboard.writeText(clip).then(() => {
-        this.$message({ message: 'Copied to clipboard' })
-      })
+    chooseSubreddit (subreddit) {
+      console.log('You have chosen: ' + subreddit)
+      const payload = {
+        Type: 'answer',
+        Payload: {
+          Answer: subreddit
+        }
+      }
+      this.$store.state.websocketConnection.send(JSON.stringify(payload))
     }
   }
 }
