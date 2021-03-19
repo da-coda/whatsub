@@ -97,7 +97,7 @@ export default {
         case 'score': {
           console.log('I got a score')
           const data = JSON.parse(event.data)
-          this.$store.commit('updateScoreBoard', data.Scores)
+          this.$store.commit('updateScoreBoard', data.Payload.Scores)
           break
         }
         case 'finished': {

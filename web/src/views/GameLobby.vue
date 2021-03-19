@@ -113,6 +113,7 @@ export default {
           const data = JSON.parse(event.data)
           console.log(data.Payload.Scores)
           that.players = Object.keys(data.Payload.Scores)
+          this.$store.commit('updateScoreBoard', data.Payload.Scores)
           break
         }
         default:
