@@ -13,11 +13,7 @@ import (
 
 func main() {
 	logrus.SetLevel(logrus.DebugLevel)
-	/*err := database.InitDB()
-	if err != nil {
-		logrus.WithError(err).Error("Unable to connect to DB")
-		os.Exit(1)
-	}*/
+
 	gm := gameLogic.NewGameMaster(game.WorkerFactory{})
 	router := mux.NewRouter()
 	registerRoutes(router, gm)
