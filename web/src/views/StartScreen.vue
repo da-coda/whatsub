@@ -38,6 +38,9 @@ import BigLogo from '@/views/BigLogo'
 export default {
   name: 'StartScreen',
   components: { BigLogo },
+  mounted () {
+    this.$store.commit('clearGameData')
+  },
   methods: {
     openNewGame () {
       createGame()
