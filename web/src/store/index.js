@@ -2,12 +2,17 @@ import { createStore } from 'vuex'
 
 export default createStore({
   state: {
-    gameId: null,
+    gameShortId: null,
     playerUUID: null,
     playerName: null,
     isGameHead: false,
     websocketConnection: null,
     scoreBoard: {}
+  },
+  getters: {
+    isExistingGameFound: state => {
+      return [state.gameId, state.playerUUID, state.playerName].every(gameAttr => gameAttr !== null)
+    }
   },
   mutations: {
     /**
@@ -24,13 +29,20 @@ export default createStore({
         )
       }
     },
+    clearGameData (state) {
+      state.gameShortId = null
+      state.playerUUID = null
+      state.isGameHead = false
+      state.websocketConnection = null
+      state.scoreBoard = { }
+    },
     /**
      * Save player game data
      * @param state
      * @param {object} payload
      */
     setGameData (state, payload) {
-      state.gameId = payload.gameUUID
+      state.gameShortId = payload.gameShortId
       state.playerUUID = payload.playerUUID
       state.playerName = payload.playerName
       state.isGameHead = payload.isGameHead
