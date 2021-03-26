@@ -5,6 +5,7 @@ import App from './App.vue'
 
 import router from './router'
 import store from './store'
+import { joinGame } from '@/lib/whatsub'
 
 // Subscribe to store updates
 store.subscribe((mutation, state) => {
@@ -13,6 +14,25 @@ store.subscribe((mutation, state) => {
 })
 store.commit('initialiseStore')
 
+console.log('Game was running: ' + store.getters.isExistingGameFound)
+
+if (store.getters.isExistingGameFound) {
+  const playerName = store.state.playerName
+  const playerUUID = store.state.playerUUID
+  const gameShortId = store.state.gameShortId
+  const webSocket = joinGame(playerName, gameShortId, playerUUID)
+  webSocket.onerror(ev => {
+    console.log('NO! Bad Dog!')
+  })
+
+  store.commit('setWebsocketConnection', webSocket)
+  store.commit('setGameData', {
+    gameUUID: gameShortId,
+    playerUUID: playerUUID,
+    playerName: playerName,
+    isGameHead: store.state.isGameHead
+  })
+}
 const app = createApp(App)
 
 app.use(store)
