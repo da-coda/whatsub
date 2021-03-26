@@ -100,11 +100,7 @@ export default {
       const msg = JSON.parse(event.data)
       console.log(event.data)
       switch (msg.Type) {
-        case 'join': {
-          // TODO: display joined user
-          break
-        }
-        case 'left': {
+        case 'round': {
           // TODO: display joined user
           break
         }
