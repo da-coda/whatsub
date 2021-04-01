@@ -74,23 +74,9 @@ func (gm *GameMaster) JoinGame(w http.ResponseWriter, r *http.Request) {
 	//get needed params from join request
 	vars := mux.Vars(r)
 	workerId := vars["uuid_or_key"]
-
-	//Parse uuid and find matching worker
-	workerUuid, err := uuid.Parse(workerId)
+	gameWorker, err := gm.loadWorker(w, workerId)
 	if err != nil {
-		id, exists := gm.workerShortIds.Load(workerId)
-		if !exists {
-			logrus.WithError(err).Error("Unable to parse worker id")
-			w.WriteHeader(400)
-			return
-		}
-		workerUuid = id.(uuid.UUID)
-	}
-
-	gameWorker, exists := gm.Worker.Load(workerUuid)
-	if !exists {
-		logrus.WithField("UUID", workerUuid).Debug("Tried to join game on worker that does not exist")
-		w.WriteHeader(404)
+		logrus.WithError(err).Error(err.Error())
 		return
 	}
 	gameWorker.(game.Worker).Join(w, r)
