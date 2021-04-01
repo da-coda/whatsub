@@ -102,14 +102,22 @@ func (gm *GameMaster) StartGame(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	workerId := vars["uuid_or_key"]
 
+	gameWorker, err := gm.loadWorker(w, workerId)
+	if err != nil {
+		logrus.WithError(err).Error(err.Error())
+		return
+	}
+	go gameWorker.(game.Worker).Run()
+}
+
+func (gm *GameMaster) loadWorker(w http.ResponseWriter, workerId string) (game.Worker, error) {
 	//Parse uuid and find matching worker
 	workerUuid, err := uuid.Parse(workerId)
 	if err != nil {
 		id, exists := gm.workerShortIds.Load(workerId)
 		if !exists {
-			logrus.WithError(err).Error("Unable to parse worker id")
 			w.WriteHeader(400)
-			return
+			return nil, errors.New("Unable to parse worker id")
 		}
 		workerUuid = id.(uuid.UUID)
 	}
@@ -117,11 +125,12 @@ func (gm *GameMaster) StartGame(w http.ResponseWriter, r *http.Request) {
 	//Find worker and start game
 	gameWorker, exists := gm.Worker.Load(workerUuid)
 	if !exists {
-		logrus.WithField("UUID", workerUuid).Debug("Tried to join game on worker that does not exist")
+		errorMessage := "Tried to join game on worker that does not exist"
+		logrus.WithField("UUID", workerUuid).Debug(errorMessage)
 		w.WriteHeader(404)
-		return
+		return nil, errors.New(errorMessage)
 	}
-	go gameWorker.(game.Worker).Run()
+	return gameWorker.(game.Worker), nil
 }
 
 func (gm *GameMaster) CreateGameHandler(writer http.ResponseWriter, request *http.Request) {
