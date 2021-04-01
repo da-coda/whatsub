@@ -174,6 +174,11 @@ func (gm *GameMaster) CreateGameHandler(writer http.ResponseWriter, request *htt
 	}
 }
 
+//GetStatus fetches the current status of an active game
+func (gm *GameMaster) GetStatus(writer http.ResponseWriter, request *http.Request) {
+
+}
+
 //cleanUp checks for every running worker if the worker is still needed.
 //If not call Worker.Close and remove worker from GameMaster.Worker
 func (gm *GameMaster) cleanUp() {
