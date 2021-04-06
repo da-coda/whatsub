@@ -1,0 +1,5 @@
+export const GS_UNKNOWN = 'unknown'
+export const GS_STARTSCREEN = 'start screen'
+export const GS_CONNECTING = 'connecting'
+export const GS_LOBBY = 'lobby'
+export const GS_GAME = 'game'

@@ -83,6 +83,7 @@ export default {
       const playerUUID = uuidv4()
       const connection = joinGame(this.username, this.gameKey, playerUUID)
       connection.onopen = () => {
+        console.log('Connection to websocket successful')
         this.$store.commit('setGameData',
           {
             gameUUID: this.gameKey,
@@ -95,7 +96,8 @@ export default {
         this.$router.push('/game/' + this.gameKey + '/lobby')
       }
       connection.onerror = () => {
-        console.log('sad noises')
+        console.log('Could not establish a web socket connection!')
+        this.$router.push('/')// TODO Maybe try again?
       }
     }
   }

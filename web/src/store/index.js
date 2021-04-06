@@ -1,4 +1,5 @@
 import { createStore } from 'vuex'
+import { GS_UNKNOWN } from '@/lib/states'
 
 export default createStore({
   state: {
@@ -7,7 +8,8 @@ export default createStore({
     playerName: null,
     isGameHead: false,
     websocketConnection: null,
-    scoreBoard: {}
+    scoreBoard: {},
+    gameState: GS_UNKNOWN
   },
   getters: {
     isExistingGameFound: state => {

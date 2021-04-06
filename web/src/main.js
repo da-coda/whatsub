@@ -21,17 +21,22 @@ if (store.getters.isExistingGameFound) {
   const playerUUID = store.state.playerUUID
   const gameShortId = store.state.gameShortId
   const webSocket = joinGame(playerName, gameShortId, playerUUID)
-  webSocket.onerror(ev => {
-    console.log('NO! Bad Dog!')
-  })
 
-  store.commit('setWebsocketConnection', webSocket)
-  store.commit('setGameData', {
-    gameUUID: gameShortId,
-    playerUUID: playerUUID,
-    playerName: playerName,
-    isGameHead: store.state.isGameHead
-  })
+  webSocket.onopen = ev => {
+    store.commit('setWebsocketConnection', webSocket)
+    store.commit('setGameData', {
+      gameUUID: gameShortId,
+      playerUUID: playerUUID,
+      playerName: playerName,
+      isGameHead: store.state.isGameHead
+    })
+  }
+
+  webSocket.onerror = ev => {
+    console.log('Existing game found, but websocket connection could not be established. Going back to start screen.')
+    store.commit('clearGameData')
+    router.push('/')
+  }
 }
 const app = createApp(App)
 

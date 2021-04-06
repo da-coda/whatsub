@@ -47,8 +47,7 @@
 </template>
 <script>
 
-import { startGame, joinGame, baseUrl } from '@/lib/whatsub'
-import { v4 as uuidv4 } from 'uuid'
+import { startGame, baseUrl, askGameState } from '@/lib/whatsub'
 
 export default {
   name: 'GameLobby',
@@ -75,28 +74,11 @@ export default {
   },
   mounted () {
     console.log('Game started')
-    if (this.$store.state.websocketConnection === null) {
-      let webSocket = null
-      let playerName = this.$store.state.playerName
-      let playerUUID = this.$store.state.playerUUID
-      const isRejoin = [playerName, playerUUID].every(value => value !== null)
-      if (!isRejoin) {
-        playerName = 'Unnamed Player'
-        playerUUID = uuidv4()
-      }
-      webSocket = joinGame(playerName, this.code, playerUUID)
-      this.$store.commit('setWebsocketConnection', webSocket)
-      this.$store.commit('setGameData', {
-        gameUUID: this.code,
-        playerUUID: playerUUID,
-        playerName: playerName,
-        isGameHead: this.$store.state.isGameHead
-      })
-    }
-
-    this.loading = false
     const that = this
-    this.$store.state.websocketConnection.onmessage = (event) => {
+    askGameState(this.code).then((answer) => {
+      this.update(answer.data.Payload)
+    })
+    this.$store.state.websocketConnection.onmessage = event => {
       const msg = JSON.parse(event.data)
       console.log(event.data)
       switch (msg.Type) {
@@ -118,6 +100,9 @@ export default {
     }
   },
   methods: {
+    update (payload) {
+      this.players = payload.Player
+    },
     copyCode (clip) {
       navigator.clipboard.writeText(clip).then(() => {
         this.$message({ message: 'Copied to clipboard' })
