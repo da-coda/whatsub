@@ -45,6 +45,7 @@ type Worker interface {
 	Key() string
 	TransitionState(state State) error
 	Creator() string
+	Players() []string
 }
 
 func CanTransition(currentState State, transitionState State) bool {

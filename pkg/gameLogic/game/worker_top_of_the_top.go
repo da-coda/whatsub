@@ -43,6 +43,15 @@ type topOfTheTopWorker struct {
 	log           *logrus.Entry
 }
 
+func (worker *topOfTheTopWorker) Players() []string {
+	players := make([]string, 1)
+	worker.Clients.Range(func(key, value interface{}) bool {
+		players = append(players, value.(*Client).Name)
+		return true
+	})
+	return players
+}
+
 //newTopOfTheTopWorker creates a new Worker and setups channels
 func newTopOfTheTopWorker(ipHash string) Worker {
 	w := topOfTheTopWorker{
@@ -218,6 +227,7 @@ func (worker *topOfTheTopWorker) State() State {
 func (worker *topOfTheTopWorker) Key() string {
 	return worker.ShortId
 }
+
 
 func (worker *topOfTheTopWorker) TransitionState(state State) error {
 	if CanTransition(worker.State(), state) {

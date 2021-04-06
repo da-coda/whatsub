@@ -111,7 +111,7 @@ func (gm *GameMaster) loadWorker(w http.ResponseWriter, workerId string) (game.W
 	//Find worker and start game
 	gameWorker, exists := gm.Worker.Load(workerUuid)
 	if !exists {
-		errorMessage := "Tried to join game on worker that does not exist"
+		errorMessage := "Tried to load game on worker that does not exist"
 		logrus.WithField("UUID", workerUuid).Debug(errorMessage)
 		w.WriteHeader(404)
 		return nil, errors.New(errorMessage)
@@ -161,8 +161,29 @@ func (gm *GameMaster) CreateGameHandler(writer http.ResponseWriter, request *htt
 }
 
 //GetStatus fetches the current status of an active game
-func (gm *GameMaster) GetStatus(writer http.ResponseWriter, request *http.Request) {
-
+func (gm *GameMaster) GetStatus(w http.ResponseWriter, r *http.Request) {
+	//get needed params from join request
+	vars := mux.Vars(r)
+	workerId := vars["uuid_or_key"]
+	gameWorker, err := gm.loadWorker(w, workerId)
+	if err != nil {
+		logrus.WithError(err).Error(err.Error())
+		return
+	}
+	response := messages.NewGameStatusMessage(gameWorker.State().String())
+	response.Payload.Player = gameWorker.Players()
+	payload, err := json.Marshal(response)
+	if err != nil {
+		logrus.WithError(err).Error(err.Error())
+		w.WriteHeader(500)
+		return
+	}
+	_, err = w.Write(payload)
+	if err != nil {
+		logrus.WithError(err).Error(err.Error())
+		w.WriteHeader(500)
+		return
+	}
 }
 
 //cleanUp checks for every running worker if the worker is still needed.
