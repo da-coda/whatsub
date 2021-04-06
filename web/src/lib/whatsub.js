@@ -32,12 +32,20 @@ function joinGame (username, link, playerUUID) {
 }
 
 /**
- *
- * @param {string} link
- * @return {Promise}
+ * Start the first round of the game
+ * @param {string} link Shortend game id
+ * @return {Promise<AxiosResponse<any>>}
  */
 function startGame (link) {
   return axios.get(baseUrl + '/game/' + link + '/start')
 }
 
-export { joinGame, createGame, startGame }
+/**
+ * Ask the game server to give the current game state
+ * @param {string} link Shortened game idk
+ * @return {Promise<AxiosResponse<any>>}
+ */
+function askGameState (link) {
+  return axios.get(baseUrl + '/game/' + link + '/status')
+}
+export { joinGame, createGame, startGame, askGameState }
