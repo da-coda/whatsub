@@ -25,7 +25,7 @@ if (store.getters.isExistingGameFound) {
   webSocket.onopen = ev => {
     store.commit('setWebsocketConnection', webSocket)
     store.commit('setGameData', {
-      gameUUID: gameShortId,
+      gameShortId: gameShortId,
       playerUUID: playerUUID,
       playerName: playerName,
       isGameHead: store.state.isGameHead

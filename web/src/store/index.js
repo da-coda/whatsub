@@ -13,7 +13,7 @@ export default createStore({
   },
   getters: {
     isExistingGameFound: state => {
-      return [state.gameId, state.playerUUID, state.playerName].every(gameAttr => gameAttr !== null)
+      return [state.gameShortId, state.playerUUID, state.playerName].every(gameAttr => gameAttr !== null)
     }
   },
   mutations: {

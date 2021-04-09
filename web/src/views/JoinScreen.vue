@@ -86,7 +86,7 @@ export default {
         console.log('Connection to websocket successful')
         this.$store.commit('setGameData',
           {
-            gameUUID: this.gameKey,
+            gameShortId: this.gameKey,
             playerUUID: playerUUID,
             playerName: this.username,
             isGameHead: this.isGameHead
