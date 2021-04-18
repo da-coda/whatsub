@@ -116,6 +116,26 @@ func (worker *topOfTheTopWorker) Join(w http.ResponseWriter, r *http.Request) {
 	worker.sendScoreMessage()
 }
 
+func (worker *topOfTheTopWorker) Start() {
+	worker.log.Debug("Waiting for Player Ack")
+	var wg sync.WaitGroup
+	worker.Clients.Range(func(_, value interface{}) bool {
+		client := value.(*Client)
+		if client.Terminated {
+			return false
+		}
+
+		startedMessage := messages.NewStartedMessage()
+		startedMessageJson, _ := json.Marshal(startedMessage)
+		client.Send <- startedMessageJson
+		wg.Add(1)
+		go worker.handleClientStartAck(client, &wg)
+		return true
+	})
+	wg.Wait()
+	worker.Run()
+}
+
 func (worker *topOfTheTopWorker) Disconnect(gameClient *Client) {
 	worker.log.Debug("Player disconnected")
 	worker.Clients.Delete(gameClient.uuid)
@@ -239,6 +259,14 @@ func (worker *topOfTheTopWorker) TransitionState(state State) error {
 
 func (worker *topOfTheTopWorker) Creator() string {
 	return worker.CreatorIpHash
+}
+
+func (worker *topOfTheTopWorker) handleClientStartAck(playerClient *Client, wg *sync.WaitGroup) {
+	_, ok := <-playerClient.Message
+	if !ok {
+		return
+	}
+	wg.Done()
 }
 
 //handleClientAnswer handles the incoming answer of a single client, updates the score if necessary, notifies the client

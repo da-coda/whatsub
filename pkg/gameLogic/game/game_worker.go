@@ -38,6 +38,7 @@ type Worker interface {
 	io.Closer
 	Join(w http.ResponseWriter, r *http.Request)
 	Disconnect(gameClient *Client)
+	Start()
 	Run()
 	StillNeeded() bool
 	ID() uuid.UUID

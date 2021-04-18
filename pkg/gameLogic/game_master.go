@@ -93,7 +93,10 @@ func (gm *GameMaster) StartGame(w http.ResponseWriter, r *http.Request) {
 		logrus.WithError(err).Error(err.Error())
 		return
 	}
-	go gameWorker.(game.Worker).Run()
+
+	go gameWorker.(game.Worker).Start()
+
+	w.WriteHeader(204)
 }
 
 func (gm *GameMaster) loadWorker(w http.ResponseWriter, workerId string) (game.Worker, error) {
