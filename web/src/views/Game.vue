@@ -24,8 +24,6 @@
 </template>
 <script>
 
-import { joinGame } from '@/lib/whatsub'
-import { v4 as uuidv4 } from 'uuid'
 import ImagePost from '@/components/game/ImagePost'
 import HtmlPost from '@/components/game/HtmlPost'
 
@@ -63,28 +61,9 @@ export default {
     }
   },
   mounted () {
-    if (this.$store.state.websocketConnection === null) {
-      let webSocket = null
-      let playerName = this.$store.state.playerName
-      let playerUUID = this.$store.state.playerUUID
-      const isRejoin = [playerName, playerUUID].every(value => value !== null)
-      if (!isRejoin) {
-        playerName = 'Unnamed Player'
-        playerUUID = uuidv4()
-      }
-      webSocket = joinGame(playerName, this.code, playerUUID)
-      this.$store.commit('setWebsocketConnection', webSocket)
-      this.$store.commit('setGameData', {
-        gameUUID: this.code,
-        playerUUID: playerUUID,
-        playerName: playerName,
-        isGameHead: this.$store.state.isGameHead
-      })
-    }
-
-    this.loading = false
     const that = this
-    this.$store.state.websocketConnection.onmessage = (event) => {
+    const websocketConnection = this.$store.state.websocketConnection
+    websocketConnection.onmessage = (event) => {
       const msg = JSON.parse(event.data)
       console.log(event.data)
       switch (msg.Type) {
@@ -106,6 +85,7 @@ export default {
         }
       }
     }
+    websocketConnection.send('{}')// Dummy Ack
   },
   methods: {
     chooseSubreddit (subreddit) {

@@ -70,10 +70,13 @@ export default {
     },
     gameLink () {
       return baseUrl + '/' + this.$router.resolve({ name: 'JoinScreenByLink', code: this.code }).href
+    },
+    gameViewUrl () {
+      return this.$router.resolve({ name: 'Game', code: this.code }).path
     }
   },
   mounted () {
-    console.log('Game started')
+    console.log('In Lobby')
     const that = this
     askGameState(this.code).then((answer) => {
       this.update(answer.data.Payload)
@@ -82,8 +85,9 @@ export default {
       const msg = JSON.parse(event.data)
       console.log(event.data)
       switch (msg.Type) {
-        case 'round': {
-          // TODO: display joined user
+        case 'started': {
+          console.log('Go to game screen')
+          this.$router.push(this.gameViewUrl)
           break
         }
         case 'score': {
@@ -110,10 +114,9 @@ export default {
     },
     startGame () {
       console.log('Starting the game')
-      const gameViewURL = this.$router.resolve({ name: 'Game', code: this.code }).path
       startGame(this.code)
         .then(() =>
-          this.$router.push(gameViewURL)
+          console.log('waiting for bat signal')
         )
     }
   }
