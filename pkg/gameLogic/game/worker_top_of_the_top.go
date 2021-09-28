@@ -431,7 +431,11 @@ func (worker *topOfTheTopWorker) sendScoreMessage() {
 	worker.Clients.Range(func(_, value interface{}) bool {
 		client := value.(*Client)
 		score, _ := worker.Score.Load(client.uuid.String())
-		msg.Payload.Scores[client.Name] = score.(int)
+		msg.Payload.Scores = append(msg.Payload.Scores, messages.SingleScore{
+			Name:  client.Name,
+			Score: score.(int),
+			UUID:  client.uuid,
+		})
 		return true
 	})
 	msgJson, err := json.Marshal(msg)
