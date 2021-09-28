@@ -85,6 +85,9 @@ func (worker *topOfTheTopWorker) Close() error {
 func (worker *topOfTheTopWorker) Join(w http.ResponseWriter, r *http.Request) {
 	playerName := r.FormValue("name")
 	playerUUIDString := r.FormValue("uuid")
+	if playerUUIDString == "" {
+		playerUUIDString = uuid.New().String()
+	}
 	playerUUID, err := uuid.Parse(playerUUIDString)
 	if err != nil {
 		worker.log.WithError(err).Error("invalid uuid")
@@ -113,6 +116,7 @@ func (worker *topOfTheTopWorker) Join(w http.ResponseWriter, r *http.Request) {
 	default:
 		w.WriteHeader(400)
 	}
+	worker.sendJoinMessage(playerUUID, playerName)
 	worker.sendScoreMessage()
 }
 
@@ -247,7 +251,6 @@ func (worker *topOfTheTopWorker) State() State {
 func (worker *topOfTheTopWorker) Key() string {
 	return worker.ShortId
 }
-
 
 func (worker *topOfTheTopWorker) TransitionState(state State) error {
 	if CanTransition(worker.State(), state) {
@@ -429,6 +432,28 @@ func (worker *topOfTheTopWorker) sendScoreMessage() {
 		client := value.(*Client)
 		score, _ := worker.Score.Load(client.uuid.String())
 		msg.Payload.Scores[client.Name] = score.(int)
+		return true
+	})
+	msgJson, err := json.Marshal(msg)
+	if err != nil {
+		worker.log.WithError(err).
+			Error("Unable to marshal score message to json")
+		return
+	}
+	worker.Clients.Range(func(_, value interface{}) bool {
+		client := value.(*Client)
+		if !client.Terminated {
+			client.Send <- msgJson
+		}
+		return true
+	})
+}
+
+func (worker *topOfTheTopWorker) sendJoinMessage(uuid uuid.UUID, name string) {
+	msg := messages.UserJoinedMessage()
+	worker.Clients.Range(func(_, value interface{}) bool {
+		msg.Payload.UUID = uuid
+		msg.Payload.Name = name
 		return true
 	})
 	msgJson, err := json.Marshal(msg)
