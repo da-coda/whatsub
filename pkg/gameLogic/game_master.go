@@ -74,6 +74,7 @@ func (gm *GameMaster) JoinGame(w http.ResponseWriter, r *http.Request) {
 	//get needed params from join request
 	vars := mux.Vars(r)
 	workerId := vars["uuid_or_key"]
+	logrus.Debug("Received Join Request for workerId ", workerId)
 	gameWorker, err := gm.loadWorker(w, workerId)
 	if err != nil {
 		logrus.WithError(err).Error(err.Error())
@@ -123,6 +124,8 @@ func (gm *GameMaster) loadWorker(w http.ResponseWriter, workerId string) (game.W
 }
 
 func (gm *GameMaster) CreateGameHandler(writer http.ResponseWriter, request *http.Request) {
+	writer.Header().Set("Access-Control-Allow-Origin", "*")
+	logrus.Debug("Creating a new Game")
 	hashedIp := md5.New()
 	_, err := io.WriteString(hashedIp, request.RemoteAddr)
 	if err != nil {
@@ -156,6 +159,7 @@ func (gm *GameMaster) CreateGameHandler(writer http.ResponseWriter, request *htt
 		writer.WriteHeader(500)
 		return
 	}
+	logrus.Debug("New Game created with UUID ", response.Payload.UUID, " and key ", response.Payload.Key)
 	_, err = writer.Write(payload)
 	if err != nil {
 		writer.WriteHeader(500)
